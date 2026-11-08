@@ -1,0 +1,710 @@
+// ワイヤーで飛ぶ出前バイトの動き（WIRE ESCAPE と同じ。2026-11-02 本人「元のワイヤーEscapeと同じ操作に」「巻き取りボタンいらん」「届く範囲狭い」）。three.js に依存しないので、画面と検証で同じものが動く。固定ステップで呼ぶこと。
+//
+// 操作（入力は車と同じ形で受ける）
+//   throttle  前へ走る / スイング中は前へこぐ
+//   brake     止まる・後ろへ下がる
+//   steer     向きを変える（+ で右）
+//   jump      跳ぶ（地面にいるとき。壁に向かって走ると駆け上がる）
+//   wire      ワイヤー。押すたびに 掛ける / 外す（掛ける所は前の上の建物。地面にいれば跳んでから掛ける）
+//   （巻き取りのボタンは無い。2026-11-02 本人「巻き取りボタンいらん」。振り子の下の方で自動で少しずつ縮める）
+//   wireAt    狙った点 {x,y,z}（画面をタッチ・クリックした所の建物）。無ければ前の上を自動で探す
+// ガスやゲージは無い。ワイヤー1本で動く
+//
+// 座標は車と同じ（x=東西, z=南北, yaw=0 で +z を向く）。y は足の高さ。
+// 体力は dmg.body（車と同じ名前にして、警察と犯人の判定 chase.js をそのまま使う）
+
+import { GAME } from './config.js?v=1'
+
+export const RUN = {
+  radius: 0.42, height: 1.75,
+  walk: 10,          // 走る速さ（m/s）
+  back: 4,
+  accel: 38, airAccel: 9,
+  turn: 3.4, airTurn: 1.8,      // 向きを変える速さ（rad/s）
+  gravity: 21,
+  jump: 8.6,
+  coyote: 0.12,                 // 地面を離れてもまだ跳べる時間
+  stepUp: 1.3,                  // これ以下の段差（柵など）は乗り越える
+  climb: 11,                    // 壁を駆け上がる速さ
+  crawl: 5,                     // 壁に張り付いて横へ這う速さ
+  crawlDown: 7,                 // 壁を降りる速さ
+  wireRange: 75,                // ワイヤーが届く距離（35 は狭いと言われた）。遠くても直線で引かず振り子で振るので瞬間移動にはならない
+  wireMinUp: 3,                 // 掛ける点は自分よりこれ以上高い所
+  pump: 13,                     // スイング中に前へこぐ力
+  steerAssist: 2.2,             // スイング中、横へ流れる速さを向いている方へ寄せる（毎秒の割合）
+  reel: 4,                      // 自動の巻き取り: 振り子の下半分でロープを毎秒 reel + 長さ×reelK m 縮める。回る勢いは保つ（振りが速くなる）。引き寄せない
+  reelK: 0.14,
+  reelMax: 12,                  // 自動の巻き取りの上限（m/s）。速すぎると引き寄せに見える
+  reelVmax: 26,                 // これより速い時は自動で巻かない
+  minRope: 6,
+  swingLow: 6,                  // 振り子の一番下の、地面からの高さ
+  zip: 18,                      // 巻き取りの最高速（m/s）。2026-10-30 本人「巻き取り早すぎ」で 32→18
+  zipAcc: 22,                   // 巻き取りの加速（48→22）
+  zipCd: 1,                     // （使っていない。表示の割り算用）
+  zipExit: 7.5,                 // 巻き取りの終わりに前と上へ飛び出す速さ
+  // 地面ワイヤー（2026-11-03 本人「空中に浮いてる間は地面にもワイヤーつけて加速できるように」「地面をちゃんとタップしなあかん感じに」）
+  // 空中で画面の地面をタップした時だけ。掛けた点へ加速し、近くか通り過ぎたら外れて前と上へ跳ねる（スリングショット）
+  groundWireAcc: 48,            // 点へ向かう加速（m/s²）。30 では加速が分かりにくかった（2026-11-03 本人「あんまり加速できない」）
+  groundWireBoost: 9,           // 掛けた瞬間に点の向きへ足す速さ（最高速は超えない）
+  groundWireRelease: 4,         // 点（胸から）がこれより近くなったら外れる（m）
+  groundWireKick: 4,            // 外れた時に進む向き（水平）へ足す速さ
+  groundWireHop: 3.5,           // 空中で外れた時の上向きの速さの下限（前へ低い山なり。地面の近くや着地では跳ねない）
+  groundWireMaxT: 3,            // これより長く掛けていたら外す（秒）
+  // UFO に引っかける（UFOの出前泥棒）: 掛けたUFOへ引き寄せられて体当たりになる。引き寄せは ufoMax まで（振り子で速く飛んで当てた方が強い）
+  ufoAcc: 30, ufoBoost: 7, ufoMax: 26, ufoMaxT: 3.2,
+  // 低い物へのワイヤー。2026-11-04 店の周りを埋めた時に、低い点（電柱・一軒家）へ遠くから掛けると1フレームで 25m 飛ぶ（ロープを短くして位置を押し込む）のを見つけた
+  lowAnchor: 16,                // 足元からこの高さより低い点は、ロープをこの速さで縮めて寄せる（瞬間移動しない）
+  lowPull: 30,                  // （m/s）
+  lowPenalty: 1.2,              // ワイヤーボタンの自動の狙いで、低い物より高いビルを選ぶ（店の周りの低い物で振りが小さくならないように。何も無ければ低い物に掛かる）
+  lowHop: 8.5,                  // 自動販売機（low）に掛けて外れた時の上向きの速さ。機械を跳び越す
+  lowExit: 12,                  // そのときの水平の速さの上限。機械の後ろの家に勢いでぶつからない（ぶつかると 14m/s 超で崩れる）
+  maxSpeed: 38,
+  releaseVyMax: 9,              // 外した瞬間の上向きの速さの上限（振るたびに空へ昇り続けないように）
+  drag: 0.012,
+  releaseKick: 1.2,             // ワイヤーを外した瞬間に上へ少し跳ねる
+  downSec: 3.2,                 // 体力が尽きて倒れている時間
+  waterY: -1.2,                 // 運河に落ちたらこれより下
+  hitSpeed: 7,                  // 車とこれより速くぶつかると、はね飛ばされる
+  stompVy: 7,                   // これより速く落ちて車の屋根に当たると踏みつけ
+  stompBounce: 11,              // 踏みつけで跳ね返る速さ
+  hideCombo: 6,                 // 地面に着かずにワイヤーをこの数つなぐと、警察が見失う
+  hideCd: 20,                   // 見失わせたあと、次に使えるまでの秒数
+  hideSec: 4,                   // 見失う秒数
+  sneak: 2.6,                   // しゃがみ歩きの速さ（隠密。通行人に気づかれにくい）
+  netSec: 2.6,                  // 捕獲ネットに捕まって動けない秒数
+  netMash: 0.12,                // 連打1回で縮む秒数（1秒に7回押して約1.4秒で抜ける）
+  pitSec: 2.2,                  // 落とし穴からはい上がるまで
+  pitMash: 0.15,                // ジャンプ連打1回で縮む秒数（ワイヤーを掛ければすぐ出られる）
+  pitDepth: 2.2
+}
+
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v
+
+export function createRunner({ id, name = '', spawn, paint = null, bot = false }) {
+  return {
+    id, name, bot, isRunner: true, carId: 'runner', paint, levels: {},
+    stats: { durability: 1, maxSpeed: RUN.maxSpeed, boostCap: 1, mass: 0.2 },
+    x: spawn.x, y: spawn.y || 0, z: spawn.z, vx: 0, vy: 0, vz: 0,
+    yaw: spawn.yaw || 0, pitch: 0, roll: 0, wp: 0, wr: 0,
+    grounded: true, airTime: 0, lastAir: 0, surf: 'road', coyote: 0,
+    boost: 0, boostLock: false, boosting: false, heat: 0, overheat: false, zipCd: 0, zipping: false, zipPrev: false,
+    dmg: { body: 1, engine: 1, tires: 1, susp: 1, cool: 1 },
+    dents: [], flat: false,
+    wreck: 0, freeze: 0, stun: 0, falling: false, knock: false,
+    respawnPoint: { x: spawn.x, y: spawn.y || 0, z: spawn.z, yaw: spawn.yaw || 0 },
+    safeHist: [], safeT: 0,
+    rope: null, wirePrev: false, jumpPrev: false, combo: 0, swings: 0,
+    climbing: null, onRoof: false, roofTime: 0, groundY: 0, net: 0, pit: 0, pitAt: null, sneaking: false, sneakPrev: false,
+    breaks: 0, maxAir: 0, t: 0, drifting: false, slip: 0, repairing: false,
+    events: []
+  }
+}
+
+export function speedOf(c) { return Math.hypot(c.vx, c.vz) }
+
+// 当たる箱（建物・柵・噴水・外周）。壊せる小物（街灯・木）はすり抜ける
+function solids(world, x, z) {
+  // world.solidProps（空中出前）: 街灯・信号・木・柵などの小物にも当たる（WIRE ESCAPE は車で壊すので素通り）
+  return world.nearby(x, z).filter(o => (!o.def || world.solidProps) && !o.slab && o.y1 != null)
+}
+function local(o, x, z) {
+  const c = Math.cos(o.yaw || 0), s = Math.sin(o.yaw || 0)
+  const dx = x - o.cx, dz = z - o.cz
+  return { u: dx * c - dz * s, v: dx * s + dz * c, c, s }
+}
+
+// 足元の高さ（地面・橋・建物の屋上）。y より少し上までの面だけを見る
+export function floorAt(world, x, z, y) {
+  let h = world.groundAt(x, z, y + 0.5).h
+  let roof = null
+  for (const o of solids(world, x, z)) {
+    if (o.y1 > y + 0.6 || o.y1 <= h) continue
+    const p = local(o, x, z)
+    if (Math.abs(p.u) <= o.hw + 0.15 && Math.abs(p.v) <= o.hl + 0.15) {
+      // 切妻屋根（一軒家）: 棟へ向かって床が上がる。乗っても屋根に埋まらない
+      const top = o.gable ? o.y1 + o.gable * Math.max(0, 1 - (o.ridgeX ? Math.abs(p.v) / o.hl : Math.abs(p.u) / o.hw)) : o.y1
+      if (top <= y + 0.6) { h = Math.max(h, top); roof = o }
+    }
+  }
+  return { h, roof }
+}
+
+// 線と箱の交わり（箱の向きにそろえて、3つの軸の幅で切る）。当たれば t（0〜len）を返す
+function rayBox(o, ox, oy, oz, dx, dy, dz, len) {
+  const c = Math.cos(o.yaw || 0), s = Math.sin(o.yaw || 0)
+  const px = (ox - o.cx) * c - (oz - o.cz) * s, pz = (ox - o.cx) * s + (oz - o.cz) * c
+  const qx = dx * c - dz * s, qz = dx * s + dz * c
+  let t0 = 0, t1 = len
+  for (const [p, d, lo, hi] of [[px, qx, -o.hw, o.hw], [oy, dy, o.y0, o.y1 + (o.gable || 0)], [pz, qz, -o.hl, o.hl]]) {
+    if (Math.abs(d) < 1e-9) { if (p < lo || p > hi) return -1; continue }
+    let a = (lo - p) / d, b = (hi - p) / d
+    if (a > b) { const tmp = a; a = b; b = tmp }
+    if (a > t0) t0 = a
+    if (b < t1) t1 = b
+    if (t0 > t1) return -1
+  }
+  return t0
+}
+
+// ワイヤーを掛けられる建物（背の高い箱）。毎回全部は見ないよう、世界ごとに一度だけ集める
+function anchorBoxes(world) {
+  if (!world._anchorBoxes) world._anchorBoxes = world.colliders.filter(o => !o.slab && o.y1 != null && (o.y1 - o.y0 > 6 || o.small) && (o.kind === 'building' || o.kind === 'bound'))   // small: 低い店・一軒家（空中出前）
+  return world._anchorBoxes
+}
+
+// 画面をタッチ・クリックした向きの線が最初に当たる建物の点（ワイヤーの狙い）。当たらなければ null
+// minT: 画面のタップはカメラから線を出す。自分より手前（カメラと自分の間）の電柱に吸われないように、この距離より近い電柱は見ない
+export function rayHit(world, ox, oy, oz, dx, dy, dz, len = 400, minT = 0) {
+  let best = -1
+  for (const o of anchorBoxes(world)) {
+    const t = rayBox(o, ox, oy, oz, dx, dy, dz, len)
+    if (t > 0 && (best < 0 || t < best)) best = t
+  }
+  let hit = best < 0 ? null : { x: ox + dx * best, y: oy + dy * best, z: oz + dz * best }
+  // 電柱・街灯（world.poles、空中出前だけ）: 細いので、線の近く（2.5m 以内）を通れば掛かる。建物より手前なら電柱を優先
+  if (world.poles) for (const q of world.poles) {
+    const tx = q.x - ox, tz = q.z - oz, ty = q.y1 - 0.4 - oy
+    const t = tx * dx + ty * dy + tz * dz
+    if (t <= minT || t > len || (best > 0 && t > best)) continue
+    const ex = ox + dx * t - q.x, ey = oy + dy * t - (q.y1 - 0.4), ez = oz + dz * t - q.z
+    // 自動販売機（low）は線の近く 1.5m・機械の高さのあたりだけ（すぐ上の壁を狙ったタップを奪わない）
+    if (ex * ex + ez * ez < (q.low ? 2.25 : 6.25) && ey > -(q.y1 - q.y0) * 0.6 && ey < (q.low ? 1 : 2.5)) { best = t; hit = { x: q.x, y: q.y1 - 0.4, z: q.z, pole: true, low: !!q.low } }
+  }
+  return hit
+}
+
+// 2点の間に建物があるか（3D）。拳銃とヘリの見通しに使う
+export function blocked(world, ax, ay, az, bx, by, bz) {
+  const dx = bx - ax, dy = by - ay, dz = bz - az, L = Math.hypot(dx, dy, dz)
+  if (L < 0.01) return false
+  for (const o of anchorBoxes(world)) {
+    const r = Math.max(o.hw, o.hl) * 1.5
+    if (o.cx + r < Math.min(ax, bx) || o.cx - r > Math.max(ax, bx) || o.cz + r < Math.min(az, bz) || o.cz - r > Math.max(az, bz)) continue
+    const t = rayBox(o, ax, ay, az, dx / L, dy / L, dz / L, L)
+    if (t >= 0 && t < L - 0.6) return true
+  }
+  return false
+}
+
+// ワイヤーを掛ける点を探す。前（進む向き寄り）の、斜め上の建物の面
+// 狙う角度を何本か試して、前向き・ほどよい高さ・近すぎないものを選ぶ
+const PITCHES = [58, 48, 68, 40, 76, 32]
+const YAWS = [0, 18, -18, 36, -36, 54, -54, 70, -70, 84, -84]
+export function findAnchor(world, r, dirYaw = null) {
+  const v = Math.hypot(r.vx, r.vz)
+  let hx = Math.sin(dirYaw ?? r.yaw), hz = Math.cos(dirYaw ?? r.yaw)
+  if (v > 6 && dirYaw == null) { const k = 0.45; hx = hx * (1 - k) + r.vx / v * k; hz = hz * (1 - k) + r.vz / v * k; const l = Math.hypot(hx, hz); hx /= l; hz /= l }
+  const ox = r.x, oy = r.y + 1.5, oz = r.z
+  const boxes = anchorBoxes(world)
+  const near = boxes.filter(o => Math.abs(o.cx - ox) < RUN.wireRange + o.hw && Math.abs(o.cz - oz) < RUN.wireRange + o.hl && o.y1 > oy + RUN.wireMinUp)
+  let best = null, bs = -1e9
+  for (const yo of YAWS) {
+    const a = Math.atan2(hx, hz) + yo * Math.PI / 180
+    const fx = Math.sin(a), fz = Math.cos(a)
+    for (const pd of PITCHES) {
+      const p = pd * Math.PI / 180
+      const dx = fx * Math.cos(p), dy = Math.sin(p), dz = fz * Math.cos(p)
+      let tHit = -1
+      for (const o of near) {
+        const t = rayBox(o, ox, oy, oz, dx, dy, dz, RUN.wireRange)
+        if (t > 0 && (tHit < 0 || t < tHit)) tHit = t
+      }
+      if (tHit < 0) continue
+      const ay = oy + dy * tHit
+      const horiz = tHit * Math.cos(p)
+      if (ay < oy + RUN.wireMinUp || horiz < 5) continue
+      // 点数: 正面ほど・55度前後ほど・ほどよい長さ（18〜40m）ほど良い。遠すぎるとワイヤーが張らず振れない
+      const s = -Math.abs(yo) * 0.012 - Math.abs(pd - 56) * 0.04 - Math.abs(tHit - 28) * 0.05 - (tHit > 55 ? (tHit - 55) * 0.1 : 0) - (ay < RUN.lowAnchor ? RUN.lowPenalty : 0)
+      if (s > bs) { bs = s; best = { x: ox + dx * tHit, y: ay, z: oz + dz * tHit, len: tHit } }
+    }
+  }
+  // 電柱・街灯の上（world.poles、空中出前だけ）も同じ点数の付け方で比べる
+  if (world.poles) {
+    const base = Math.atan2(hx, hz)
+    for (const q of world.poles) {
+      const ax = q.x - ox, az = q.z - oz, horiz = Math.hypot(ax, az), ay = q.y1 - 0.4
+      if (horiz < 5 || horiz > RUN.wireRange || ay < oy + RUN.wireMinUp) continue
+      let yo = (Math.atan2(ax, az) - base) * 180 / Math.PI; while (yo > 180) yo -= 360; while (yo < -180) yo += 360
+      if (Math.abs(yo) > 84) continue
+      const len = Math.hypot(horiz, ay - oy), pd = Math.atan2(ay - oy, horiz) * 180 / Math.PI
+      if (len > RUN.wireRange) continue
+      const s = -Math.abs(yo) * 0.012 - Math.abs(pd - 56) * 0.04 - Math.abs(len - 28) * 0.05 + 0.15 - (ay < RUN.lowAnchor && q.town ? RUN.lowPenalty : 0)
+      if (s > bs) { bs = s; best = { x: q.x, y: ay, z: q.z, len, pole: true } }
+    }
+  }
+  return best
+}
+
+export function respawnRunner(r, p = null) {
+  const h = r.safeHist
+  const sp = p || (h.length >= 4 ? h[Math.max(0, h.length - 8)] : r.respawnPoint)
+  r.x = sp.x; r.z = sp.z; r.y = sp.y || 0
+  r.vx = r.vy = r.vz = 0
+  r.yaw = sp.yaw || r.yaw
+  r.rope = null; r.climbing = null; r.stun = 0; r.falling = false
+  r.grounded = true; r.airTime = 0
+  r.freeze = 0.5
+  r.safeHist = []
+  r.events.push({ t: 'respawn', repair: false })
+}
+
+// 1ステップ
+export function stepRunner(r, inp, dt, world) {
+  r.t += dt
+  r.repairing = false
+  r.boosting = false
+  const ev = r.events
+
+  // 倒れている（体力が尽きた）
+  if (r.wreck > 0) {
+    r.wreck -= dt
+    r.rope = null; r.climbing = null
+    physics(r, 0, dt, world, true)
+    r.vx *= 0.9; r.vz *= 0.9
+    if (r.wreck <= 0) {
+      r.wreck = 0
+      r.dmg.body = Math.max(r.dmg.body, GAME.wreckRepairTo)
+      r.freeze = 0.4
+      ev.push({ t: 'respawn', repair: true })
+    }
+    return
+  }
+  if (r.freeze > 0) {
+    r.freeze -= dt
+    r.rope = null
+    physics(r, 0, dt, world, true)
+    r.vx *= 0.8; r.vz *= 0.8
+    return
+  }
+  if (inp.respawn) { respawnRunner(r); return }
+
+  // 捕獲ネット: ワイヤーが切れて落ち、しばらく動けない。ジャンプかワイヤーの連打で早く抜ける
+  const jH = !!inp.jump, wH = !!inp.wire
+  const mash = (jH && !r.jumpPrev) || (wH && !r.wirePrev)
+  if (r.net > 0) {
+    r.jumpPrev = jH; r.wirePrev = wH
+    if (mash) { r.net -= RUN.netMash; ev.push({ t: 'struggle' }) }
+    r.net -= dt
+    r.rope = null; r.climbing = null
+    physics(r, 0, dt, world, true)
+    if (r.grounded) { r.vx *= 0.85; r.vz *= 0.85 }
+    if (r.net <= 0) { r.net = 0; ev.push({ t: 'netFree' }) }
+    return
+  }
+  // 落とし穴: 穴の底でしばらく動けない。ワイヤーを掛ければすぐ出られる。ジャンプ連打でも早まる
+  if (r.pit > 0) {
+    r.jumpPrev = jH
+    const wPress = wH && !r.wirePrev
+    r.wirePrev = wH
+    r.pit -= dt
+    if (jH && mash) { r.pit -= RUN.pitMash; ev.push({ t: 'struggle' }) }
+    r.vx = r.vz = 0; r.vy = 0
+    r.x = r.pitAt.x + (r.x - r.pitAt.x) * 0.9; r.z = r.pitAt.z + (r.z - r.pitAt.z) * 0.9
+    r.y = r.pitAt.y - RUN.pitDepth
+    r.grounded = true
+    let a = null
+    if (wPress) { r.y = r.pitAt.y; a = findAnchor(world, r); r.y = r.pitAt.y - RUN.pitDepth; if (!a) ev.push({ t: 'wireMiss' }) }
+    if (a || r.pit <= 0) {
+      r.pit = 0
+      r.y = r.pitAt.y + 0.1; r.vy = a ? RUN.jump * 1.1 : RUN.jump; r.grounded = false
+      if (a) {
+        const d = Math.hypot(a.x - r.x, a.y - (r.y + 1.2), a.z - r.z)
+        r.rope = { x: a.x, y: a.y, z: a.z, len: Math.max(RUN.minRope, d * 0.9), t: 0 }
+        r.combo = 1
+        ev.push({ t: 'wire', x: a.x, y: a.y, z: a.z, combo: 1 })
+      }
+      ev.push({ t: 'pitOut', wire: !!a })
+    }
+    return
+  }
+
+  // しゃがみ歩き（隠密）: 押すたびに入れる / 切る。地上だけ。跳ぶ・ワイヤーで切れる
+  const snH = !!inp.sneak
+  if (snH && !r.sneakPrev && r.grounded && r.stun <= 0) { r.sneaking = !r.sneaking; ev.push({ t: 'sneak', on: r.sneaking }) }
+  r.sneakPrev = snH
+  let thr = inp.throttle || 0, brk = inp.brake || 0, steer = inp.steer || 0
+  const jumpHeld = !!inp.jump, wireHeld = !!inp.wire
+  const jumpPress = jumpHeld && !r.jumpPrev, wirePress = wireHeld && !r.wirePrev
+  r.jumpPrev = jumpHeld; r.wirePrev = wireHeld
+  if (r.stun > 0) { r.stun -= dt; thr = brk = steer = 0 }
+  // 巻き取り: 押している間（スマホはスティックをワイヤーの方へ倒している間）ずっと
+  r.zipping = false; r.zipCd = 0   // 巻き取りボタンは無くした（自動の巻き取りは physics の中）
+
+  // スティック（画面基準の向き moveDir）: 倒した向きへすぐ向き直る。地上も空中も「画面の左＝左」になる
+  // 2026-11-02 本人（空中しっぽ取り）「カメラが1周回ったら左に抜けてるはずなのに右に動く」。前は向きを毎秒1.8〜3.4radでしか変えず、空中の力は今向いている方へだけ足していた
+  const md = r.stun > 0 || r.climbing ? null : inp.moveDir
+  if (md) {
+    const wantYaw = Math.atan2(md.x, md.z)
+    let d = wantYaw - r.yaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2
+    const rate = (r.grounded ? RUN.turn : RUN.airTurn) * 4 * dt
+    r.yaw += Math.max(-rate, Math.min(rate, d))
+    if (r.grounded) thr *= Math.max(0.15, Math.cos(Math.min(Math.abs(d), Math.PI / 2)))   // 真後ろへ倒した時は向き直るまで走らない
+    steer = 0
+  }
+  // 向き
+  const turn = (r.grounded ? RUN.turn : r.rope ? RUN.airTurn * 1.2 : RUN.airTurn) * steer
+  r.yaw -= turn * dt
+  const fx = Math.sin(r.yaw), fz = Math.cos(r.yaw)
+  const ax = md ? md.x : fx, az = md ? md.z : fz   // 空中で力を足す向き: スティックがあれば倒した向き
+
+  // ワイヤー: 押すたびに 掛ける / 外す
+  if (wirePress && r.stun <= 0) {
+    if (r.rope) release(r, true)
+    else if (inp.wireAt && inp.wireAt.ufo != null) {
+      const w = inp.wireAt, d = Math.hypot(w.x - r.x, w.y - (r.y + 1.2), w.z - r.z) || 1
+      if (d > RUN.wireRange) ev.push({ t: 'wireMiss', far: true, x: w.x, y: w.y, z: w.z, d })
+      else {
+        r.sneaking = false; r.climbing = null
+        if (r.grounded) { r.vy = Math.max(r.vy, RUN.jump); r.grounded = false; r.y += 0.05; ev.push({ t: 'jump' }) }
+        const v0 = Math.hypot(r.vx, r.vy, r.vz)
+        r.rope = { x: w.x, y: w.y, z: w.z, len: d, t: 0, ground: true, ufo: w.ufo, cap: Math.max(RUN.ufoMax, v0) }; r.swings++
+        const ux = (w.x - r.x) / d, uy = (w.y - (r.y + 1.2)) / d, uz = (w.z - r.z) / d
+        r.vx += ux * RUN.ufoBoost; r.vy += uy * RUN.ufoBoost; r.vz += uz * RUN.ufoBoost
+        r.combo = r.grounded ? 1 : r.combo + 1
+        ev.push({ t: 'wire', ufo: w.ufo, x: w.x, y: w.y, z: w.z, combo: r.combo })
+      }
+    }
+    else if (inp.wireAt && inp.wireAt.low) {
+      // 自動販売機（2026-11-04）: 低くて振り子にならないので、地面ワイヤーと同じく点へ引かれて、近くで外れて跳び越す。地面からでも掛かる（ワイヤーボタンの自動の狙いには入らない）
+      const w = inp.wireAt, d = Math.hypot(w.x - r.x, w.y - (r.y + 1.2), w.z - r.z) || 1
+      if (d > RUN.wireRange) ev.push({ t: 'wireMiss', far: true, x: w.x, y: w.y, z: w.z, d })
+      else {
+        r.sneaking = false; r.climbing = null
+        if (r.grounded) { r.vy = Math.max(r.vy, RUN.jump); r.grounded = false; r.y += 0.05; ev.push({ t: 'jump' }) }
+        r.rope = { x: w.x, y: w.y, z: w.z, len: d, t: 0, ground: true, low: true }; r.swings++
+        r.vx += (w.x - r.x) / d * RUN.groundWireBoost; r.vz += (w.z - r.z) / d * RUN.groundWireBoost
+        const v = Math.hypot(r.vx, r.vy, r.vz); if (v > RUN.maxSpeed) { const k = RUN.maxSpeed / v; r.vx *= k; r.vy *= k; r.vz *= k }
+        ev.push({ t: 'wire', ground: true, low: true, x: w.x, y: w.y, z: w.z, combo: r.combo })
+      }
+    }
+    else if (inp.wireAt && inp.wireAt.ground) {
+      // 地面ワイヤー: 空中にいる時だけ、画面の地面をタップした所へ。地面に立っている・壁にいる・届かない・自分より上なら掛からない
+      const w = inp.wireAt, d = Math.hypot(w.x - r.x, w.y - (r.y + 1.2), w.z - r.z)
+      if (r.grounded || r.climbing || d > RUN.wireRange || w.y > r.y - 1) ev.push({ t: 'wireMiss', ground: true, far: d > RUN.wireRange, x: w.x, y: w.y, z: w.z, d })
+      else {
+        r.rope = { x: w.x, y: w.y, z: w.z, len: d, t: 0, ground: true }; r.swings++
+        // 掛けた瞬間にぐっと引かれる（点の向きへ足す。瞬間移動ではない）
+        const ux = (w.x - r.x) / d, uy = (w.y - (r.y + 1.2)) / d, uz = (w.z - r.z) / d
+        r.vx += ux * RUN.groundWireBoost; r.vy += uy * RUN.groundWireBoost; r.vz += uz * RUN.groundWireBoost
+        const v = Math.hypot(r.vx, r.vy, r.vz); if (v > RUN.maxSpeed) { const k = RUN.maxSpeed / v; r.vx *= k; r.vy *= k; r.vz *= k }
+        ev.push({ t: 'wire', ground: true, x: w.x, y: w.y, z: w.z, combo: r.combo })
+      }
+    }
+    else {
+      r.sneaking = false
+      const fromGround = r.grounded
+      if (r.grounded) { r.vy = Math.max(r.vy, RUN.jump * 0.85); r.grounded = false; r.y += 0.05; ev.push({ t: 'jump' }) }
+      // 狙った点（画面をタッチ・クリックした所）があればそこへ。届かなければ自動で探す
+      let a = null
+      const w = inp.wireAt
+      let far = false
+      if (w) {
+        const d = Math.hypot(w.x - r.x, w.y - (r.y + 1.5), w.z - r.z)
+        if (d <= RUN.wireRange && w.y > r.y + 2) a = { x: w.x, y: w.y, z: w.z, len: d }
+        else { a = findAnchor(world, r, Math.atan2(w.x - r.x, w.z - r.z)); far = !a }   // 遠すぎる所を押したら、その向きで届く所を探す
+      }
+      if (!a && !far) a = findAnchor(world, r, inp.wireYaw)   // 狙いが無い時は画面の前かスティックの向き
+      if (!a && far) { ev.push({ t: 'wireMiss', far: true, x: w.x, y: w.y, z: w.z }); a = undefined }
+      if (a) {
+        const d = Math.hypot(a.x - r.x, a.y - (r.y + 1.2), a.z - r.z)
+        // 長さは「振り子の一番下が、足元の地面から swingLow 上に来る」長さ。今の距離より長ければ、張るまで落ちてから振れる
+        // 高い所から掛けると通りへ向かって振り下ろし、また上がる。振るたびに空へ昇り続けない
+        const low = floorAt(world, r.x, r.z, r.y).h + RUN.swingLow
+        const want = Math.max(RUN.minRope, a.y - (low + 1.2))
+        const len = Math.min(want, d * 1.5, RUN.wireRange)
+        r.rope = { x: a.x, y: a.y, z: a.z, len, t: 0 }
+        // 低い点へ遠くから掛けた時: 長さを今の距離から始めて縮める（押し込むと1フレームで何十mも飛ぶ）。高いビルは今までどおり
+        if (len < d && a.y - floorAt(world, r.x, r.z, r.y).h < RUN.lowAnchor) { r.rope.len = d; r.rope.pull = len }
+        r.climbing = null
+        // 遅いときは前へ押し出す（止まった所から掛けても振れるように）
+        const v = speedOf(r)
+        if (v < 12) { r.vx += fx * (12 - v); r.vz += fz * (12 - v) }
+        // 地面に着かずにつないだ数
+        r.combo = fromGround ? 1 : r.combo + 1
+        r.swings++
+        r.bestCombo = Math.max(r.bestCombo || 0, r.combo)
+        ev.push({ t: 'wire', x: a.x, y: a.y, z: a.z, combo: r.combo })
+      } else if (a === null) ev.push({ t: 'wireMiss' })
+    }
+  }
+
+  // ジャンプ（地面か、地面を離れた直後）
+  if (jumpPress && r.climbing) {
+    // 壁に張り付いている時のジャンプ: 壁から離れる（後ろへ少し跳ねる）
+    const cl = r.climbing
+    r.climbing = null; r.vy = RUN.jump * 0.7; r.vx = cl.nx * 6; r.vz = cl.nz * 6
+    ev.push({ t: 'jump', off: true })
+  } else if (jumpPress && r.stun <= 0 && (r.grounded || r.coyote > 0) && !r.rope) {
+    r.sneaking = false
+    r.vy = RUN.jump
+    r.grounded = false; r.coyote = 0; r.y += 0.05
+    ev.push({ t: 'jump' })
+  } else if (jumpPress && r.rope) release(r, true)
+
+  // 走る・こぐ・噴かす
+  if (r.climbing) {
+    // 壁に張り付いて這う（2026-11-02 本人「張り付いてる間、左右・上下に動けるように」）
+    // 上下 = wallY（無ければ 前 − 後ろ）、左右 = wallX（無ければ ハンドル）。何も押さなければその場に止まる。跳ぶと離れる
+    const cl = r.climbing
+    const wy = inp.wallY != null ? inp.wallY : thr - brk, wx = inp.wallX != null ? inp.wallX : steer
+    if (r.stun > 0) { r.climbing = null; r.vy = Math.min(r.vy, 2); r.vx += cl.nx * 3; r.vz += cl.nz * 3 }
+    else {
+      const rx = cl.nz, rz = -cl.nx   // 壁を向いた時の右
+      r.vy = (wy > 0 ? RUN.climb * (r.climbMul || 1) : RUN.crawlDown) * wy
+      r.vx = -cl.nx * 2 + rx * wx * RUN.crawl; r.vz = -cl.nz * 2 + rz * wx * RUN.crawl // 壁に押しつけたまま
+      r.yaw = Math.atan2(-cl.nx, -cl.nz)
+      cl.lat = Math.abs(wx) > 0.1
+      if (wy < 0 && r.y <= r.groundY + 0.05) { r.climbing = null }   // 下りきった
+      else if (r.y >= cl.top - 0.2 && wy > 0) {
+        // 屋上へ乗り上げる
+        r.climbing = null
+        r.y = cl.top + 0.05
+        r.vy = 3.5
+        r.vx = -cl.nx * 5; r.vz = -cl.nz * 5
+        ev.push({ t: 'vault' })
+      }
+    }
+  } else if (r.grounded) {
+    const want = (thr > 0 ? (r.sneaking ? RUN.sneak : RUN.walk) * thr : brk > 0 ? -RUN.back * (r.sneaking ? 0.5 : 1) : 0) * (r.speedMul || 1)
+    const vf = r.vx * fx + r.vz * fz
+    const vl = r.vx * fz - r.vz * fx // 横（右が + ではない。消すだけなので向きは問わない）
+    const nf = vf + clamp(want - vf, -RUN.accel * dt * (brk > 0 && vf > 0 ? 1.6 : 1), RUN.accel * dt)
+    const nl = vl * Math.max(0, 1 - 14 * dt) // 横滑りはすぐ消す（人は向いた方へ走る）
+    r.vx = fx * nf + fz * nl; r.vz = fz * nf - fx * nl
+  } else {
+    // 空中: 少しだけ前後に動ける
+    if (thr > 0) { r.vx += ax * RUN.airAccel * thr * dt; r.vz += az * RUN.airAccel * thr * dt }
+    if (brk > 0) { r.vx *= 1 - 0.8 * dt; r.vz *= 1 - 0.8 * dt }
+    if (r.rope && !r.rope.ground) {   // 地面ワイヤー中はこがない
+      // こぐ: 進む向きへ力を足す（振り子が大きくなる）
+      if (thr > 0 && r.vy < 2) { r.vx += ax * RUN.pump * dt; r.vz += az * RUN.pump * dt }
+      // 横へ流れる分を、向いている方へ寄せる（横の建物に掛けても前へ進む）
+      const hv = Math.hypot(r.vx, r.vz)
+      if (hv > 3) {
+        const k = Math.min(1, RUN.steerAssist * dt)
+        const nx = r.vx / hv * (1 - k) + ax * k, nz = r.vz / hv * (1 - k) + az * k, nl = Math.hypot(nx, nz) || 1
+        r.vx = nx / nl * hv; r.vz = nz / nl * hv
+      }
+    }
+  }
+  r.boosting = false
+
+  physics(r, thr, dt, world, false)
+
+  // 復帰用に、地面にいた位置を覚える
+  if (r.grounded && r.y > RUN.waterY + 0.5) {
+    r.safeT += dt
+    if (r.safeT > 0.3) { r.safeT = 0; r.safeHist.push({ x: r.x, y: r.y, z: r.z, yaw: r.yaw }); if (r.safeHist.length > 14) r.safeHist.shift() }
+  }
+}
+
+// 地面ワイヤーが外れる: 進む向きに少し足して上へ跳ねる。外す音と視野の演出は手で外した時と同じ（auto: false）
+export function groundRelease(r, hop = true) {
+  if (!r.rope) return
+  const h = Math.hypot(r.vx, r.vz)
+  if (r.rope.low) { if (h > RUN.lowExit) { r.vx *= RUN.lowExit / h; r.vz *= RUN.lowExit / h } }
+  else if (h > 0.5) { r.vx += r.vx / h * RUN.groundWireKick; r.vz += r.vz / h * RUN.groundWireKick }
+  if (hop) r.vy = Math.max(r.vy, r.rope.low ? RUN.lowHop : RUN.groundWireHop)
+  else {
+    // 地面の近く: 跳ねずに着地する。下向きの勢いの半分を前へ回して、強く叩きつけない（着地の衝撃 6m/s 以下）
+    const lost = Math.max(0, -r.vy - 6), h2 = Math.hypot(r.vx, r.vz)
+    r.vy = Math.min(Math.max(r.vy, -6), 0)
+    if (h2 > 0.5 && lost > 0) { r.vx += r.vx / h2 * lost * 0.5; r.vz += r.vz / h2 * lost * 0.5 }
+  }
+  r.rope = null; r.zipping = false
+  r.events.push({ t: 'unwire', auto: false, ground: true })
+}
+
+function release(r, byPlayer) {
+  if (!r.rope) return
+  r.rope = null
+  r.zipping = false
+  // 外した瞬間に少し上へ（次のワイヤーまでの間をつくる）
+  if (r.vy > -4) r.vy += RUN.releaseKick
+  if (!r.zipExit) r.vy = Math.min(r.vy, RUN.releaseVyMax)
+  r.events.push({ t: 'unwire', auto: !byPlayer })
+}
+
+function physics(r, thr, dt, world, passive) {
+  const R = RUN.radius
+  if (!r.climbing) r.vy -= RUN.gravity * dt
+  // 空気の抵抗と最高速
+  if (!r.grounded) { const k = 1 - RUN.drag * dt * Math.hypot(r.vx, r.vy, r.vz) * 0.1; r.vx *= k; r.vz *= k }
+  const sp3 = Math.hypot(r.vx, r.vy, r.vz)
+  if (sp3 > RUN.maxSpeed) { const k = RUN.maxSpeed / sp3; r.vx *= k; r.vy *= k; r.vz *= k }
+
+  const px = r.x, py = r.y, pz = r.z
+  r.x += r.vx * dt; r.y += r.vy * dt; r.z += r.vz * dt
+
+  // 地面ワイヤー: 振り子にせず、胸から掛けた点へ向かって加速する。近くか通り過ぎたら外れる
+  if (r.rope && r.rope.ufo != null) {
+    // UFO へ引き寄せ: 点（UFO の今の位置。shared/ufo.js が毎歩合わせる）へ加速。当たりの判定は ufo.js。外したら（通り過ぎた・長すぎ）外れる
+    const rp = r.rope; rp.t += dt
+    const dx = rp.x - r.x, dy = rp.y - (r.y + 1.2), dz = rp.z - r.z, d = Math.hypot(dx, dy, dz) || 1
+    const toward = (r.vx * dx + r.vy * dy + r.vz * dz) / d
+    if ((toward < 0 && rp.t > 0.6) || rp.t > RUN.ufoMaxT) groundRelease(r, true)
+    else {
+      const a = RUN.ufoAcc * dt; r.vx += dx / d * a; r.vy += dy / d * a + RUN.gravity * dt * 0.9; r.vz += dz / d * a
+      // 向きを UFO へ寄せる（横の勢いが残って UFO のまわりを回り続けないように。速さは保つ）
+      const v0 = Math.hypot(r.vx, r.vy, r.vz), k0 = Math.min(1, dt * 5)
+      r.vx += (dx / d * v0 - r.vx) * k0; r.vy += (dy / d * v0 - r.vy) * k0; r.vz += (dz / d * v0 - r.vz) * k0
+      const v = Math.hypot(r.vx, r.vy, r.vz); if (v > rp.cap) { const k = rp.cap / v; r.vx *= k; r.vy *= k; r.vz *= k }
+    }
+  } else if (r.rope && r.rope.ground) {
+    const rp = r.rope; rp.t += dt
+    const dx = rp.x - r.x, dy = rp.y - (r.y + 1.2), dz = rp.z - r.z, d = Math.hypot(dx, dy, dz) || 1
+    const toward = (r.vx * dx + r.vy * dy + r.vz * dz) / d
+    const above = r.y - floorAt(world, r.x, r.z, r.y).h
+    if (d < RUN.groundWireRelease || (toward < 0 && rp.t > 0.25) || rp.t > RUN.groundWireMaxT) groundRelease(r, rp.low || above > 3)   // 地面から離れた空中で外れた時だけ前へ山なり（地面の近くでは跳ねない）。自動販売機は跳び越す
+    else if (above < 0.8 && !rp.low) groundRelease(r, false)   // 地面すれすれ: 跳ねずにそのまま着地して走る（2026-11-03 本人「地面に着いてからバウンドするのはおかしい」）
+    else { const a = RUN.groundWireAcc * dt; r.vx += dx / d * a; r.vy += dy / d * a + RUN.gravity * (RUN.ropeG || 1) * dt * 0.9; r.vz += dz / d * a }   // 重力はほぼ打ち消す（点へまっすぐ向かう）
+  }
+  // ワイヤー: 長さより遠くへは行けない（外へ向かう速さを消す）
+  if (r.rope && !r.rope.ground) {
+    const rp = r.rope
+    rp.t += dt
+    if (rp.pull != null) {   // 低い点へ寄せている間: ロープを縮める。落ちない
+      rp.len = Math.max(rp.pull, rp.len - RUN.lowPull * dt)
+      if (r.vy < 0) r.vy = 0
+      if (rp.len <= rp.pull) rp.pull = null
+    }
+    const hx = r.x, hy = r.y + 1.2, hz = r.z
+    let dx = hx - rp.x, dy = hy - rp.y, dz = hz - rp.z
+    let d = Math.hypot(dx, dy, dz)
+    if (d > rp.len) {
+      const nx = dx / d, ny = dy / d, nz = dz / d
+      r.x = rp.x + nx * rp.len; r.y = rp.y + ny * rp.len - 1.2; r.z = rp.z + nz * rp.len
+      const out = r.vx * nx + r.vy * ny + r.vz * nz
+      if (out > 0) { r.vx -= out * nx; r.vy -= out * ny; r.vz -= out * nz }
+      // 下の方では少しずつ巻き取って持ち上げる
+      // 下の方では少しずつ巻き取る（自動）。回る勢いを保つので振りが速くなる。掛けた点へ直線で引き寄せはしない
+      if (ny < -0.35 && Math.hypot(r.vx, r.vy, r.vz) < RUN.reelVmax) {   // 速い時は巻かない（振るたびに高く昇り続けないように）
+        const L0 = rp.len, L1 = Math.max(RUN.minRope, L0 - Math.min(RUN.reelMax, RUN.reel + L0 * RUN.reelK) * dt)
+        if (L1 < L0) {
+          const rad = r.vx * nx + r.vy * ny + r.vz * nz, k = Math.min(1.02, L0 / L1)
+          r.vx = rad * nx + (r.vx - rad * nx) * k; r.vy = rad * ny + (r.vy - rad * ny) * k; r.vz = rad * nz + (r.vz - rad * nz) * k
+          r.x = rp.x + nx * L1; r.y = rp.y + ny * L1 - 1.2; r.z = rp.z + nz * L1
+          rp.len = L1
+        }
+      }
+      d = rp.len
+    }
+    // 振り切った: 掛けた点より前に出て上がっている（ワイヤーが水平から 25 度より上）なら自動で外す
+    const ahead = (r.x - rp.x) * r.vx + (r.z - rp.z) * r.vz > 0
+    if (r.zipping) { /* 巻き取り中は外さない */ }
+    else if (ahead && r.vy > 0 && (r.y + 1.2 - rp.y) > -d * 0.6 && rp.t > 0.4) release(r, false)
+    // 掛けた点より上に出た／長すぎる時間がたった
+    else if (r.y + 1.2 > rp.y + 1 || rp.t > 6) release(r, false)
+  }
+
+  // 壁・柵
+  let wall = null
+  for (const o of solids(world, r.x, r.z)) {
+    if (r.y >= o.y1 - 0.05 || r.y + RUN.height <= o.y0) continue
+    const p = local(o, r.x, r.z)
+    const pu = o.hw + R - Math.abs(p.u), pv = o.hl + R - Math.abs(p.v)
+    if (pu <= 0 || pv <= 0) continue
+    // 低い段差は乗り越える
+    if (o.y1 - r.y <= RUN.stepUp && !passive) { r.y = o.y1; if (r.vy < 0) r.vy = 0; continue }
+    // 前の位置が箱の上なら、上に乗る
+    if (py >= o.y1 - 0.25) { r.y = o.y1; if (r.vy < 0) r.vy = 0; continue }
+    // 浅い方へ押し出す
+    let nu = 0, nv = 0
+    if (pu < pv) nu = Math.sign(p.u) || 1
+    else nv = Math.sign(p.v) || 1
+    const push = Math.min(pu, pv)
+    // 箱の向き → 世界の向き（local の逆回転）
+    const nx = nu * p.c + nv * p.s, nz = -nu * p.s + nv * p.c
+    r.x += nx * push; r.z += nz * push
+    const into = r.vx * nx + r.vz * nz
+    if (into < 0) {
+      if (-into > 14 && !r.rope) r.events.push({ t: 'bonk', speed: -into })
+      r.vx -= into * nx; r.vz -= into * nz
+    }
+    if (!wall || o.y1 > wall.top) wall = { nx, nz, top: o.y1, o }
+  }
+
+  // 壁を駆け上がる（壁に向かって前を押している。ワイヤー中は外してから）
+  if (wall && !passive && !r.climbing && !r.sneaking && thr > 0 && wall.top - r.y > RUN.stepUp) {
+    const fx = Math.sin(r.yaw), fz = Math.cos(r.yaw)
+    if (fx * -wall.nx + fz * -wall.nz > 0.55) {
+      if (r.rope) release(r, false)
+      r.climbing = { nx: wall.nx, nz: wall.nz, top: wall.top }
+      r.events.push({ t: 'climb' })
+    }
+  }
+  if (r.climbing && !wall) {
+    // 壁が途切れた。横へ這っていて角に来たなら、そこで止まる（落ちない）。それ以外は離れる
+    if (r.climbing.lat && !passive) { r.x = px; r.z = pz; r.vx = -r.climbing.nx * 2; r.vz = -r.climbing.nz * 2 }
+    else r.climbing = null
+  } else if (r.climbing && wall) { r.climbing.nx = wall.nx; r.climbing.nz = wall.nz; r.climbing.top = wall.top }
+
+  // 床
+  const f = floorAt(world, r.x, r.z, Math.max(r.y, py))
+  const wasGround = r.grounded
+  if (r.y <= f.h + 0.02 && r.vy <= 0.01) {
+    const impact = -r.vy
+    r.y = f.h; r.vy = 0
+    if (!wasGround) {
+      const air = r.airTime
+      r.lastAir = air
+      r.maxAir = Math.max(r.maxAir, air)
+      r.events.push({ t: 'land', air, impact, roof: !!f.roof, combo: r.combo })
+      if (r.combo >= 2) r.events.push({ t: 'comboEnd', n: r.combo })
+      r.combo = 0
+      r.groundedSince = r.t
+      if (r.rope && r.rope.pull == null) release(r, false)
+    }
+    r.grounded = true; r.airTime = 0; r.coyote = RUN.coyote
+    r.onRoof = !!f.roof
+    r.surf = f.roof ? 'roof' : world.surfaceAt(r.x, r.z)
+  } else if (r.y > f.h + 0.25 || r.vy > 0.01) {
+    if (wasGround) r.coyote = RUN.coyote
+    r.grounded = false
+    r.coyote = Math.max(0, r.coyote - dt)
+    r.airTime += dt
+    r.onRoof = false
+  } else {
+    // 少しだけ浮いている（段差を下りる途中）: 地面に吸いつける
+    r.y = f.h; r.vy = 0; r.grounded = true; r.airTime = 0
+  }
+  // 地面を走っている間はワイヤーを持たない（張っていないワイヤーで引きずらない）
+  if (r.grounded && r.rope && r.rope.ground) groundRelease(r, false)   // 地面ワイヤーのまま着地: 跳ねない
+  else if (r.grounded && r.rope && r.rope.t > 0.3 && r.rope.pull == null) release(r, false)
+  r.groundY = f.h
+  if (r.y > (r.maxY || 0)) r.maxY = r.y
+  r.roofTime = r.onRoof && r.grounded ? r.roofTime + dt : 0
+
+  // 運河に落ちた: 少し前の地面に戻る
+  if (r.y < RUN.waterY && !r.falling) {
+    r.falling = true
+    r.events.push({ t: 'splash', x: r.x, z: r.z })
+    r.rope = null; r.climbing = null
+    const back = r.safeHist.length ? r.safeHist[Math.max(0, r.safeHist.length - 6)] : r.respawnPoint
+    respawnRunner(r, back)
+  }
+  // 街の外へは出ない
+  const b = world.bounds
+  r.x = clamp(r.x, b.x0 + 2, b.x1 - 2); r.z = clamp(r.z, b.z0 + 2, b.z1 - 2)
+}
+
+// 車に当てられた（警察・一般車）。はね飛ばされて体力が減る。体力が尽きると倒れる
+export function hitByCar(r, car, rel, dmgScale = 1) {
+  const dx = r.x - car.x, dz = r.z - car.z, d = Math.hypot(dx, dz) || 1
+  r.rope = null; r.climbing = null
+  r.vx = car.vx * 0.85 + dx / d * 6; r.vz = car.vz * 0.85 + dz / d * 6
+  r.vy = 7.5 + Math.min(6, rel * 0.25) // 大げさに高く飛ばす（見て笑える）
+  r.grounded = false; r.y += 0.1
+  r.stun = 0.9
+  const a = (0.08 + rel * 0.0065) * dmgScale
+  r.dmg.body = Math.max(0, r.dmg.body - a)
+  r.lastHitBy = car.id; r.lastHitAt = r.t
+  r.events.push({ t: 'carhit', other: car.id, speed: rel, x: r.x, y: r.y + 1, z: r.z, dmg: a })
+  if (r.dmg.body <= 0 && !r.wreck) down(r, 'hit')
+}
+
+export function down(r, kind) {
+  r.wreck = RUN.downSec
+  r.rope = null; r.climbing = null
+  r.events.push({ t: 'wreck', kind })
+}
