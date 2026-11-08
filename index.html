@@ -3,78 +3,36 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>空中出前 UFO襲来 | 宙吊軒の丼を取り返せ</title>
-<meta name="description" content="出前のラーメンをUFOにさらわれた。宇宙人はストローですすりながら街の上を飛んでいる。ワイヤーで飛んで体当たりしてUFOを落とし、落ちてくる丼を空中で取り返す3Dアクションのバカゲー。吸い上げ光線・レーザー・追尾弾をよけて、最後はどんぶり型の母船。スマホのブラウザで遊べる。">
+<title>廃都迎撃 UFOを落とせ | ワイヤーで飛ぶ3Dアクション</title>
+<meta name="description" content="侵攻から3日目。焼けて崩れた街に、ワイヤー1本で残った迎撃員。ビルからビルへ振って飛び、UFOに体当たりして落とす3Dアクション。足元の輪と光線をよけ、追尾弾をビルに当て、着地せずに当て続けて倍率を上げる。4つの波のあとに母艦。スマホのブラウザで無料で遊べる。">
 <meta property="og:type" content="website">
-<meta property="og:title" content="空中出前 UFO襲来 | 宙吊軒の丼を取り返せ">
-<meta property="og:description" content="ラーメンをすするUFOにワイヤーで体当たり。落ちてくる丼を空中で取り返せ。スマホのブラウザで遊べる3Dアクション。">
-<meta property="og:image" content="https://tom3games.github.io/ufo-demae/og.png?v=1">
+<meta property="og:title" content="廃都迎撃 UFOを落とせ">
+<meta property="og:description" content="焼けた街をワイヤーで飛び、UFOに体当たりして落とす3Dアクション。着地せずに当て続けて倍率を上げろ。スマホのブラウザで無料。">
+<meta property="og:image" content="https://tom3games.github.io/ufo-demae/og.png?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://tom3games.github.io/ufo-demae/">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#141b2e">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#16131a">
+<link rel="icon" href="icon.svg?v=2" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Klee+One:wght@600&family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1">
-<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
-<!-- 本体のファイルを最初から並べて取る（import をたどる待ちを減らす）。importmap より後に置く（前に置くと Chrome が "three" を解決できず起動しない） -->
-<link rel="modulepreload" href="vendor/three.module.min.js">
-<link rel="modulepreload" href="vendor/three.core.min.js">
-<link rel="modulepreload" href="js/ufo3d.js?v=1">
-<link rel="modulepreload" href="shared/ufo.js?v=1">
-<link rel="modulepreload" href="shared/ufobot.js?v=1">
-<link rel="modulepreload" href="js/quality.js?v=1">
-<link rel="modulepreload" href="js/carmodel.js?v=1">
-<link rel="modulepreload" href="vendor/jsm/loaders/GLTFLoader.js">
-<link rel="modulepreload" href="vendor/jsm/utils/SkeletonUtils.js">
-<link rel="modulepreload" href="vendor/jsm/utils/BufferGeometryUtils.js">
-<link rel="modulepreload" href="js/street3d.js?v=1">
-<link rel="modulepreload" href="shared/town.js?v=1">
-<link rel="modulepreload" href="js/charmodel.js?v=1">
-<link rel="modulepreload" href="shared/street.js?v=1">
-<link rel="modulepreload" href="shared/traffic.js?v=1">
-<link rel="modulepreload" href="shared/config.js?v=1">
-<link rel="modulepreload" href="js/slip.js?v=1">
-<link rel="modulepreload" href="shared/runner.js?v=1">
-<link rel="modulepreload" href="js/runnermodel.js?v=1">
-<link rel="modulepreload" href="js/look.js?v=1">
-<link rel="modulepreload" href="vendor/jsm/postprocessing/OutputPass.js">
-<link rel="modulepreload" href="vendor/jsm/shaders/OutputShader.js">
-<link rel="modulepreload" href="vendor/jsm/postprocessing/Pass.js">
-<link rel="modulepreload" href="vendor/jsm/postprocessing/ShaderPass.js">
-<link rel="modulepreload" href="vendor/jsm/postprocessing/UnrealBloomPass.js">
-<link rel="modulepreload" href="vendor/jsm/shaders/LuminosityHighPassShader.js">
-<link rel="modulepreload" href="vendor/jsm/shaders/CopyShader.js">
-<link rel="modulepreload" href="vendor/jsm/postprocessing/RenderPass.js">
-<link rel="modulepreload" href="vendor/jsm/postprocessing/EffectComposer.js">
-<link rel="modulepreload" href="vendor/jsm/postprocessing/MaskPass.js">
-<link rel="modulepreload" href="js/fx.js?v=1">
-<link rel="modulepreload" href="js/geo.js?v=1">
-<link rel="modulepreload" href="js/scene.js?v=1">
-<link rel="modulepreload" href="shared/track.js?v=1">
-<link rel="modulepreload" href="shared/city.js?v=1">
-<link rel="modulepreload" href="js/facade.js?v=1">
-<link rel="modulepreload" href="js/trees.js?v=1">
+<link id="gfonts" href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@700;800;900&amp;family=BIZ+UDPGothic:wght@400;700&amp;family=Share+Tech+Mono&amp;display=swap&amp;text=%20!%22%23%24%25%26'()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~%C2%B7%C3%97%E2%80%A6%E2%86%92%E3%80%80%E3%80%81%E3%80%82%E3%80%8C%E3%80%8D%E3%81%81%E3%81%82%E3%81%84%E3%81%86%E3%81%88%E3%81%8A%E3%81%8B%E3%81%8C%E3%81%8D%E3%81%8E%E3%81%8F%E3%81%90%E3%81%91%E3%81%92%E3%81%93%E3%81%94%E3%81%95%E3%81%97%E3%81%98%E3%81%99%E3%81%9A%E3%81%9B%E3%81%9D%E3%81%9E%E3%81%9F%E3%81%A0%E3%81%A1%E3%81%A3%E3%81%A4%E3%81%A6%E3%81%A7%E3%81%A8%E3%81%A9%E3%81%AA%E3%81%AB%E3%81%AE%E3%81%AF%E3%81%B0%E3%81%B1%E3%81%B2%E3%81%B3%E3%81%B5%E3%81%B6%E3%81%B8%E3%81%B9%E3%81%BB%E3%81%BE%E3%81%BF%E3%82%80%E3%82%81%E3%82%82%E3%82%84%E3%82%86%E3%82%88%E3%82%89%E3%82%8A%E3%82%8B%E3%82%8C%E3%82%8D%E3%82%8F%E3%82%92%E3%82%93%E3%82%A1%E3%82%A2%E3%82%A4%E3%82%A6%E3%82%A8%E3%82%AA%E3%82%AE%E3%82%AF%E3%82%B0%E3%82%B1%E3%82%B2%E3%82%B3%E3%82%B6%E3%82%B7%E3%82%B8%E3%82%B9%E3%82%BF%E3%83%80%E3%83%81%E3%83%83%E3%83%86%E3%83%88%E3%83%89%E3%83%8B%E3%83%90%E3%83%91%E3%83%92%E3%83%93%E3%83%94%E3%83%96%E3%83%97%E3%83%9B%E3%83%9C%E3%83%9D%E3%83%9E%E3%83%A0%E3%83%A3%E3%83%A4%E3%83%A7%E3%83%A9%E3%83%AA%E3%83%AB%E3%83%AD%E3%83%AF%E3%83%B3%E3%83%B6%E3%83%BB%E3%83%BC%E4%B8%80%E4%B8%8A%E4%B8%8B%E4%B8%8D%E4%B8%A6%E4%B8%AD%E4%B8%BB%E4%BA%86%E4%BA%88%E4%BA%8B%E4%BA%BA%E4%BB%A5%E4%BB%BB%E4%BC%9A%E4%BD%93%E4%BD%9C%E4%BD%BF%E4%BE%A1%E4%BE%B5%E4%BF%9D%E4%BF%A1%E5%80%8D%E5%81%9C%E5%82%99%E5%82%B7%E5%83%8F%E5%85%83%E5%85%88%E5%85%89%E5%85%A5%E5%85%A8%E5%85%B5%E5%85%B7%E5%86%8D%E5%87%BA%E5%88%86%E5%88%87%E5%88%97%E5%88%A4%E5%88%B0%E5%88%B6%E5%89%8D%E5%89%B2%E5%8A%9F%E5%8B%95%E5%8B%A2%E5%8C%97%E5%8C%BA%E5%8D%8A%E5%8D%B0%E5%8E%9F%E5%8F%8D%E5%8F%8E%E5%8F%B0%E5%8F%B3%E5%90%88%E5%90%8C%E5%90%91%E5%90%9B%E5%91%8A%E5%91%BD%E5%93%81%E5%93%A1%E5%96%AB%E5%9B%9E%E5%9B%A0%E5%9C%B0%E5%9E%8B%E5%A0%B1%E5%A0%B4%E5%A2%97%E5%A2%9C%E5%A3%8A%E5%A3%B0%E5%A3%B2%E5%A4%96%E5%A4%A7%E5%A4%B1%E5%AD%90%E5%AD%97%E5%AD%98%E5%AE%8C%E5%AE%9A%E5%B0%84%E5%B0%8E%E5%B0%8F%E5%B0%91%E5%B0%BE%E5%B1%85%E5%B1%8A%E5%B1%8B%E5%B4%A9%E5%B7%A6%E5%B7%A8%E5%B8%AF%E5%B9%B3%E5%BA%97%E5%BA%A6%E5%BB%83%E5%BC%95%E5%BC%B1%E5%BC%B5%E5%BC%B7%E5%BC%BE%E5%BD%93%E5%BD%A9%E5%BD%B1%E5%BE%8C%E5%BE%A9%E5%BF%83%E5%BF%9C%E6%80%A5%E6%81%AF%E6%82%AA%E6%84%8F%E6%84%9F%E6%88%90%E6%88%A6%E6%89%80%E6%8B%A1%E6%8C%81%E6%8C%87%E6%8C%9F%E6%8C%AF%E6%8E%92%E6%8E%9B%E6%8E%A2%E6%8E%A5%E6%8F%B4%E6%92%83%E6%92%A4%E6%94%AF%E6%94%BB%E6%95%97%E6%95%B5%E6%96%99%E6%96%AD%E6%96%B0%E6%96%B9%E6%97%A5%E6%98%8E%E6%99%82%E6%9A%97%E6%9B%B2%E6%9B%B8%E6%9C%80%E6%9C%AB%E6%9C%AC%E6%9D%A5%E6%9D%BF%E6%9E%9C%E6%A8%AA%E6%A9%9F%E6%AC%A1%E6%AD%93%E6%AD%A2%E6%AE%8B%E6%AF%8D%E6%B0%97%E6%B1%9A%E6%B1%A0%E6%B3%A2%E6%B5%81%E6%B6%88%E6%BA%96%E7%81%AB%E7%81%AF%E7%82%B9%E7%84%A1%E7%84%BC%E7%85%99%E7%85%A7%E7%87%83%E7%89%A9%E7%8E%87%E7%8E%8B%E7%8F%AD%E7%94%9F%E7%94%BB%E7%99%BA%E7%9B%AE%E7%9B%B4%E7%9C%8B%E7%9C%9F%E7%9D%80%E7%9E%AC%E7%9F%A2%E7%A0%B2%E7%A0%B4%E7%A2%BA%E7%A4%BA%E7%A6%81%E7%A7%92%E7%A7%BB%E7%A9%BA%E7%AA%81%E7%AA%93%E7%AB%8B%E7%AC%AC%E7%AD%94%E7%AE%A1%E7%B4%AB%E7%B4%B0%E7%B5%82%E7%B5%90%E7%B5%B5%E7%B6%9A%E7%B7%9A%E7%B7%B4%E7%B8%81%E7%B8%A6%E7%BC%B6%E7%BD%AE%E8%80%85%E8%81%9E%E8%82%89%E8%83%8C%E8%87%AA%E8%89%A6%E8%89%B2%E8%8A%AF%E8%8B%B1%E8%8C%B6%E8%90%BD%E8%96%84%E8%A1%8C%E8%A1%97%E8%A1%9D%E8%A1%A8%E8%A2%AB%E8%A6%8B%E8%A6%96%E8%A7%92%E8%A7%A3%E8%A8%93%E8%A9%95%E8%A9%B3%E8%AA%8D%E8%AA%98%E8%AA%AD%E8%B4%88%E8%B5%A4%E8%B5%B7%E8%B6%B3%E8%B7%A1%E8%B7%B3%E8%BC%AA%E8%BE%BC%E8%BF%8E%E8%BF%91%E8%BF%94%E8%BF%BD%E9%80%80%E9%80%83%E9%80%8F%E9%80%94%E9%80%9A%E9%80%9F%E9%80%A3%E9%80%B2%E9%81%85%E9%81%8A%E9%81%93%E9%81%94%E9%81%95%E9%81%BF%E9%83%A8%E9%83%BD%E9%85%92%E9%87%91%E9%8E%96%E9%96%8B%E9%96%93%E9%99%A4%E9%99%B0%E9%99%BA%E9%9A%8E%E9%9B%84%E9%9B%A2%E9%9B%A3%E9%9B%BB%E9%9C%B2%E9%9D%A2%E9%9F%B3%E9%A1%8C%E9%A1%8D%E9%A3%9B%E9%AB%98%E9%BB%92%E9%BE%A0%EF%BC%81%EF%BC%88%EF%BC%89" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="style.css?v=2">
+<link rel="modulepreload" href="dist/game.js?v=2">
 </head>
 <body>
 <div id="view"></div>
 
-<!-- タイトル: 店の暖簾 -->
+<!-- タイトル: 焼けた空の下の題字 -->
 <section id="title" class="screen">
-  <div class="noren" aria-hidden="true">
-    <div class="rod"></div>
-    <div class="cloth"><span>宙</span></div><div class="cloth"><span>吊</span></div><div class="cloth"><span>軒</span></div>
-  </div>
   <div class="title-text">
     <p class="series" data-t="series"></p>
-    <h1 class="logo" data-t="logo"></h1>
-    <p class="master"><b data-t="masterName"></b><span data-t="masterLine"></span></p>
+    <h1 class="logo"><span data-t="logo"></span><small data-t="logoSub"></small></h1>
+    <p class="intro" data-t="intro"></p>
   </div>
   <div class="title-actions">
-    <button id="btnStart" class="fuda" data-t="start"></button>
+    <button id="btnStart" class="cta" data-t="start"></button>
     <button id="btnHow" class="chip" data-t="how"></button>
   </div>
   <nav class="foot">
@@ -84,32 +42,35 @@
   </nav>
 </section>
 
-<!-- 遊び方: 店の貼り紙 -->
+<!-- 作戦指示書 -->
 <section id="how" class="screen hidden">
-  <div class="poster">
+  <div class="sheet">
     <h2 data-t="howTitle"></h2>
     <ol id="howList"></ol>
     <p class="keys" id="howKeys"></p>
-    <button class="fuda small" data-close data-t="ok"></button>
+    <button class="cta small" data-close data-t="ok"></button>
     <p class="credit" data-t="credit"></p>
     <p class="credit"><a href="privacy.html" target="_blank" rel="noopener" style="display:inline-block;padding:12px 16px;margin:-8px 0 -12px">プライバシー / Privacy</a></p>
   </div>
 </section>
 
 <!-- 遊び中 -->
-<canvas id="speedfx"></canvas><div id="hitflash"></div><div id="redflash"></div>
+<canvas id="speedfx"></canvas><div id="hitflash"></div><div id="redflash"></div><div id="whiteflash"></div>
 <section id="hud" class="hidden">
   <div id="tags" class="tags"></div>
+  <div id="chase0" class="chase hidden"><svg viewBox="0 0 24 24"><path d="M12 2 L21 20 L12 15 L3 20Z"/></svg><b></b></div><div id="chase1" class="chase hidden"><svg viewBox="0 0 24 24"><path d="M12 2 L21 20 L12 15 L3 20Z"/></svg><b></b></div><div id="chase2" class="chase hidden"><svg viewBox="0 0 24 24"><path d="M12 2 L21 20 L12 15 L3 20Z"/></svg><b></b></div>
   <div id="lock" class="lock hidden"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="34" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="14 9"/><path d="M50 4v18M50 78v18M4 50h18M78 50h18" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg><span data-t="lockOn"></span></div>
-  <div id="ticket" class="ticket">
-    <div class="t-head"><span data-t="ticketHead"></span><span id="tWave"></span></div>
-    <div id="tLine1" class="t-dish"></div>
-    <div id="tLine2" class="t-to"></div>
-    <div class="t-row"><span id="tBack"></span><b id="tScore"></b></div>
+  <!-- 左上: 作戦の表示（波・敵・点・倍率） -->
+  <div id="ops" class="ops">
+    <div class="o-head"><span id="oWave"></span><span id="oLeft"></span></div>
+    <b id="oScore" class="o-score">0</b>
+    <div id="oChain" class="o-chain"><b id="oMult">x1</b><span id="oChainN"></span><i class="o-bar"><i id="oChainBar"></i></i></div>
   </div>
-  <div id="okamochi" class="okamochi" aria-hidden="true">
-    <svg viewBox="0 0 120 96"><rect x="20" y="4" width="80" height="10" rx="3" fill="#5b4229"/><rect x="52" y="0" width="16" height="22" rx="3" fill="#5b4229"/><rect id="okBox" x="10" y="20" width="100" height="72" rx="4" fill="#c9ced3" stroke="#1d1a16" stroke-width="3"/><g id="okDents"></g><text x="60" y="64" text-anchor="middle" font-size="22" fill="#1d1a16" font-family="Yuji Syuku, serif">宙吊軒</text></svg>
-    <div id="okPips" class="ok-pips"></div><span class="ok-cap" data-t="okCap"></span>
+  <!-- 右上: 背中の電池パックと同じ絵 -->
+  <div id="pack" class="pack" aria-hidden="true">
+    <svg viewBox="0 0 76 92"><defs><filter id="cellGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+      <rect x="22" y="0" width="32" height="8" rx="2" fill="#55585a"/><rect x="3" y="6" width="70" height="84" rx="6" fill="#26292c" stroke="#0c0d0e" stroke-width="3"/><path d="M60 6 L66 0" stroke="#55585a" stroke-width="3"/><g id="packCells"></g></svg>
+    <span class="pk-cap" data-t="packCap"></span>
   </div>
   <div id="bossbar" class="bossbar hidden"><div class="bb-name"><span data-t="bossName"></span><b id="bbLeft"></b></div><div class="bb-bar"><i id="bbHp"></i></div></div>
   <div id="banner" class="banner hidden"><small id="bannerS"></small><b id="bannerB"></b></div>
@@ -127,18 +88,18 @@
 
 <!-- 一時停止 -->
 <section id="pause" class="screen hidden">
-  <div class="poster narrow">
+  <div class="sheet narrow">
     <h2 data-t="paused"></h2>
-    <button id="btnResume" class="fuda small" data-t="resume"></button>
+    <button id="btnResume" class="cta small" data-t="resume"></button>
     <button id="btnQuit" class="memo-link" data-t="quit"></button>
   </div>
 </section>
 
-<!-- 結果: 出前伝票 -->
+<!-- 結果: 作戦報告書 -->
 <section id="result" class="screen hidden">
   <div class="slip-wrap"><canvas id="slip"></canvas></div>
   <div class="result-actions">
-    <button id="btnAgain" class="fuda small" data-t="again"></button>
+    <button id="btnAgain" class="cta small" data-t="again"></button>
     <div class="chips">
       <button id="btnSave" class="chip" data-t="save"></button>
       <a id="btnPost" class="chip" target="_blank" rel="noopener" data-t="post"></a>
@@ -147,25 +108,30 @@
   </div>
 </section>
 
-<!-- ロード画面: 丼を吊り上げていく UFO（そのゲームの雰囲気のロード画面） -->
+<!-- ロード画面: 崩れた街並みを探照光がなめる -->
 <div id="boot" class="boot">
   <div class="boot-art" aria-hidden="true">
-    <svg class="boot-ufo" viewBox="0 0 200 170">
-      <g class="bu-ship"><ellipse cx="100" cy="40" rx="30" ry="22" fill="#bfeaff" opacity=".55" stroke="#1d1a16" stroke-width="3"/><ellipse cx="100" cy="36" rx="9" ry="11" fill="#9fcf8e"/><ellipse cx="96" cy="37" rx="3.4" ry="2.2" fill="#111"/><ellipse cx="104" cy="37" rx="3.4" ry="2.2" fill="#111"/><path d="M28 56 Q100 22 172 56 Q100 84 28 56Z" fill="#a6adb6" stroke="#1d1a16" stroke-width="4"/><g class="bu-lights" fill="#ffe066"><circle cx="58" cy="58" r="4"/><circle cx="80" cy="63" r="4"/><circle cx="100" cy="65" r="4"/><circle cx="120" cy="63" r="4"/><circle cx="142" cy="58" r="4"/></g></g>
-      <path class="bu-beam" d="M84 70 L116 70 L140 150 L60 150Z" fill="#8ff7ff" opacity=".28"/>
-      <g class="bu-bowl"><path d="M72 120 H128 C126 138 114 148 100 148 C86 148 74 138 72 120Z" fill="#b8211a" stroke="#1d1a16" stroke-width="3.5"/><ellipse cx="100" cy="120" rx="28" ry="4.5" fill="#e3b55f" stroke="#1d1a16" stroke-width="3"/><path d="M110 118 C118 100 132 92 140 70" fill="none" stroke="#d8342a" stroke-width="3.5" stroke-dasharray="5 4"/></g>
+    <svg class="boot-city" viewBox="0 0 240 150">
+      <defs><linearGradient id="bsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d1a26"/><stop offset=".6" stop-color="#4f3c52"/><stop offset="1" stop-color="#b0563a"/></linearGradient>
+      <linearGradient id="bbeam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9ff6ff" stop-opacity=".55"/><stop offset="1" stop-color="#9ff6ff" stop-opacity="0"/></linearGradient></defs>
+      <rect width="240" height="150" fill="url(#bsky)"/>
+      <g class="bc-beam"><path d="M150 34 L118 150 L182 150Z" fill="url(#bbeam)"/></g>
+      <g class="bc-ufo"><ellipse cx="150" cy="32" rx="22" ry="5" fill="#0e0f12"/><ellipse cx="150" cy="28" rx="8" ry="5" fill="#17363c"/><g fill="#8ff7ff"><circle cx="134" cy="33" r="1.5"/><circle cx="144" cy="35" r="1.5"/><circle cx="156" cy="35" r="1.5"/><circle cx="166" cy="33" r="1.5"/></g></g>
+      <path d="M0 150 V112 H14 V96 H22 L26 90 L30 96 H36 V120 H44 V84 L52 80 V74 H60 V86 L66 92 L70 88 V122 H82 V100 H96 V94 L100 98 L104 92 V128 H116 V108 L124 104 L130 110 V96 H142 L146 102 V130 H156 V90 H166 V82 L170 86 V118 H180 V104 H190 L196 98 V124 H206 V92 H214 L218 96 L222 90 V114 H232 V108 H240 V150Z" fill="#0f0d10"/>
+      <g fill="#ff7a2a" class="bc-fire"><rect x="47" y="98" width="4" height="3"/><rect x="88" y="110" width="4" height="3"/><rect x="160" y="100" width="3" height="3"/><rect x="209" y="104" width="4" height="3"/></g>
+      <g class="bc-ash" fill="#bdb3aa"><circle cx="30" cy="20" r="1"/><circle cx="80" cy="10" r="1"/><circle cx="120" cy="40" r=".8"/><circle cx="200" cy="18" r="1"/><circle cx="60" cy="60" r=".8"/><circle cx="220" cy="50" r=".8"/></g>
     </svg>
   </div>
-  <p class="boot-msg" data-t="loading">UFOが近づいています</p>
+  <p class="boot-msg" data-t="loading">通信を確立中</p>
   <div class="boot-bar"><i id="bootBar"></i></div><span id="bootPct" class="boot-pct">0%</span>
 </div>
 <script>
-// ロード画面の進み具合（three の読み込み数を game.js が __bootSet で渡す。それまでは少しずつ進める）
+// ロード画面の進み具合（本体が動き出したら game.js が __bootSet で進める。それまでは少しずつ進める）
 (function(){
   var bar=document.getElementById('bootBar'),pct=document.getElementById('bootPct'),k=0,real=false;
   function draw(){bar.style.transform='scaleX('+k.toFixed(3)+')';pct.textContent=Math.round(k*100)+'%'}
   window.__bootSet=function(v){real=true;if(v>k){k=Math.min(1,v);draw()}};
-  var t=setInterval(function(){if(real||window.__bootDone){clearInterval(t);return}k=Math.min(0.18,k+0.006);draw()},250);   // 本体の読み込み中（three 本体の取得）
+  var t=setInterval(function(){if(real||window.__bootDone){clearInterval(t);return}k=Math.min(0.3,k+0.01);draw()},200);
   draw();
 })();
 </script>
@@ -181,7 +147,7 @@
   window.addEventListener('wheel',function(e){if(e.ctrlKey)e.preventDefault()},opt);
   window.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&['+','-','=','0',';'].indexOf(e.key)>=0)e.preventDefault()});
 })();
-// 起動失敗の保険: エラー（読み込めなかったファイルも）があって 9 秒たっても準備できていない、または 60 秒たっても準備できていない時に原因を出す
+// 起動失敗の保険: エラーがあって 12 秒たっても準備できていない、または 60 秒たっても準備できていない時に原因を出す（読み込み中は失敗と出さない）
 (function(){
   var errs=[];
   window.addEventListener('error',function(e){var tg=e.target;if(tg&&tg!==window&&(tg.src||tg.href))errs.push('load failed: '+(tg.src||tg.href));else errs.push((e.message||'error')+' @'+(e.filename||'')+':'+(e.lineno||''))},true);
@@ -192,13 +158,13 @@
     d.textContent='起動できませんでした / failed to start\n'+(errs.join('\n')||'(no error captured)')+'\n'+navigator.userAgent;
     document.body.appendChild(d);
   }
-  setTimeout(function(){if(errs.length)show()},9000);
+  setTimeout(function(){if(errs.length)show()},12000);
   setTimeout(show,60000);
 })();
 </script>
 <script src="tm.js?v=2" data-game="ufo-demae"></script>
-<script src="sfx.js?v=1"></script>
-<script type="module" src="js/game.js?v=1"></script>
-<script src="support.js?v=1" data-ja="ラーメン" data-en="a bowl of ramen"></script>
+<script src="sfx.js?v=2"></script>
+<script type="module" src="dist/game.js?v=2"></script>
+<script src="support.js?v=2" data-ja="缶コーヒー" data-en="a can of coffee"></script>
 </body>
 </html>

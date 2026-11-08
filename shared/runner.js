@@ -50,8 +50,9 @@ export const RUN = {
   groundWireKick: 4,            // 外れた時に進む向き（水平）へ足す速さ
   groundWireHop: 3.5,           // 空中で外れた時の上向きの速さの下限（前へ低い山なり。地面の近くや着地では跳ねない）
   groundWireMaxT: 3,            // これより長く掛けていたら外す（秒）
-  // UFO に引っかける（UFOの出前泥棒）: 掛けたUFOへ引き寄せられて体当たりになる。引き寄せは ufoMax まで（振り子で速く飛んで当てた方が強い）
-  ufoAcc: 30, ufoBoost: 7, ufoMax: 26, ufoMaxT: 3.2,
+  // UFO に引っかける（廃都迎撃）: 掛けたUFOへ弱く引き寄せられる。掛けられるのはシールドが開いた時か近い時だけ（shared/ufo.js の hookable）
+  // 2026-11-09 v2 本人「ワイヤーを繋ぐだけだから簡単すぎた」: 引き寄せは弱く（12m/s まで）短く。強く当てるにはビルで振った勢いを持ち込む
+  ufoAcc: 10, ufoBoost: 2, ufoMax: 12, ufoMaxT: 2.2, ufoAim: 3,
   // 低い物へのワイヤー。2026-11-04 店の周りを埋めた時に、低い点（電柱・一軒家）へ遠くから掛けると1フレームで 25m 飛ぶ（ロープを短くして位置を押し込む）のを見つけた
   lowAnchor: 16,                // 足元からこの高さより低い点は、ロープをこの速さで縮めて寄せる（瞬間移動しない）
   lowPull: 30,                  // （m/s）
@@ -546,7 +547,7 @@ function physics(r, thr, dt, world, passive) {
     else {
       const a = RUN.ufoAcc * dt; r.vx += dx / d * a; r.vy += dy / d * a + RUN.gravity * dt * 0.9; r.vz += dz / d * a
       // 向きを UFO へ寄せる（横の勢いが残って UFO のまわりを回り続けないように。速さは保つ）
-      const v0 = Math.hypot(r.vx, r.vy, r.vz), k0 = Math.min(1, dt * 5)
+      const v0 = Math.hypot(r.vx, r.vy, r.vz), k0 = Math.min(1, dt * RUN.ufoAim)
       r.vx += (dx / d * v0 - r.vx) * k0; r.vy += (dy / d * v0 - r.vy) * k0; r.vz += (dz / d * v0 - r.vz) * k0
       const v = Math.hypot(r.vx, r.vy, r.vz); if (v > rp.cap) { const k = rp.cap / v; r.vx *= k; r.vy *= k; r.vz *= k }
     }

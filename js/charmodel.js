@@ -3,6 +3,7 @@
 // 窓の客: Kenney Mini Characters（CC0、現代の普段着）。待機アニメの上で右腕を振る
 // 読み込みが終わる前と失敗した時は、前の手続きの人形（runnermodel.js）を使う
 import * as THREE from 'three'
+import { makePack } from './pack.js?v=1'
 import { GLTFLoader } from '../vendor/jsm/loaders/GLTFLoader.js?v=1'
 import { clone as skClone } from '../vendor/jsm/utils/SkeletonUtils.js?v=1'
 
@@ -19,10 +20,10 @@ function recolor(img) {
   const x = c.getContext('2d'); x.drawImage(img, 0, 0)
   const cw = img.width / 8, ch = img.height / 4
   const grad = (col, row, top, bot, cols = 1) => { const g = x.createLinearGradient(0, row * ch, 0, (row + 1) * ch); g.addColorStop(0, top); g.addColorStop(1, bot); x.fillStyle = g; x.fillRect(col * cw, row * ch, cw * cols, ch) }
-  grad(5, 0, '#ffffff', '#cfd2d4', 2)   // 生成りの上着 → 白い調理着
-  grad(2, 2, '#ffffff', '#c9ccce')      // 同じ生成りの別の升
-  grad(0, 1, '#3a4766', '#151b2c')      // 青いスカーフ → 紺の手ぬぐい
-  grad(1, 2, '#3a4766', '#151b2c')
+  grad(5, 0, '#6d6f5e', '#3a3c31', 2)   // 生成りの上着 → くすんだオリーブの作業着（廃都の迎撃員）
+  grad(2, 2, '#6d6f5e', '#3a3c31')      // 同じ生成りの別の升
+  grad(0, 1, '#ff8a2a', '#c4501a')      // 青いスカーフ → 橙の腕章（暗い街で自分が見えるように）
+  grad(1, 2, '#ff8a2a', '#c4501a')
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.flipY = false
   return t
 }
@@ -31,9 +32,9 @@ export function loadCharAssets() {
   if (A.loading) return A.loading
   const L = new GLTFLoader()
   const get = f => new Promise((ok, ng) => L.load(BASE + f, ok, undefined, ng))
-  A.loading = Promise.all([get('Ranger.glb'), get('Rig_Medium_General.glb'), get('Rig_Medium_MovementBasic.glb'), get('aid-glasses.glb'),
-    ...CHAR_FILES.map(n => get('character-' + n + '.glb'))])
-    .then(([r, g1, g2, gl, ...cs]) => {
+  // 2026-11-09 廃都迎撃: 街に人はいない。通行人（Kenney の人物）は読まない
+  A.loading = Promise.all([get('Ranger.glb'), get('Rig_Medium_General.glb'), get('Rig_Medium_MovementBasic.glb')])
+    .then(([r, g1, g2, gl = null, ...cs]) => {
       r.scene.traverse(o => {
         if (o.isMesh) {
           o.castShadow = true; o.frustumCulled = false
@@ -45,7 +46,7 @@ export function loadCharAssets() {
       A.ranger = r.scene
       for (const cl of [...g1.animations, ...g2.animations]) A.clips[cl.name] = cl
       cs.forEach((c, i) => { A.custs[CHAR_FILES[i]] = { scene: c.scene, clips: c.animations }; c.scene.traverse(o => { if (o.isMesh) { o.castShadow = false; o.frustumCulled = false } }) })
-      A.glasses = gl.scene
+      A.glasses = gl && gl.scene
       A.ready = true
       return A
     }).catch(e => { A.failed = true; console.warn('char load failed', e); return A })
@@ -87,13 +88,8 @@ export class CharRunnerModel {
       if (/Death|Jump_Land|Jump_Start|Throw|Hit/.test(n)) { a.setLoop(THREE.LoopOnce); a.clampWhenFinished = true }
     }
     this.cur = null; this.play('Idle_A')
-    // 岡持ち（銀の出前箱）。腰の横に下げる
-    const ok = this.okamochi = new THREE.Group()
-    const steel = new THREE.MeshStandardMaterial({ color: 0xc9ced3, metalness: 0.75, roughness: 0.3 })
-    const boxM = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.3, 0.24).translate(0, -0.2, 0), steel); boxM.castShadow = true
-    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.015, 6, 12, Math.PI).translate(0, -0.02, 0), steel)
-    const label = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.005).translate(0, -0.18, 0.123), new THREE.MeshStandardMaterial({ color: 0xb22a22 }))
-    ok.add(boxM, handle, label); this.group.add(ok)
+    // 背中の電池パック（体力）
+    const ok = this.okamochi = makePack(); this.group.add(ok)
     // 手首の作業用ワイヤー射出機（橙）
     this.guns = []
     for (const side of ['l', 'r']) {
@@ -165,10 +161,10 @@ export class CharRunnerModel {
         aimBone(B['upperarm.' + sd], B['lowerarm.' + sd], this._t, 0.9)
       }
     }
-    // 岡持ち: 腰の横（左）に下げる。腕は使わない（ワイヤーで腕を上げても箱が空を向かないように）
+    // 電池パック: 背中（腰の骨から上・後ろ）
     if (B.hips) {
       B.hips.getWorldPosition(_a); g.worldToLocal(_a)
-      this.okamochi.position.set(_a.x + 0.36, _a.y + 0.38, _a.z + 0.04)
+      this.okamochi.position.set(_a.x, _a.y + 0.5, _a.z - 0.26)
       this.okamochi.rotation.set(this.tilt.rotation.x * 0.4, 0, this.tilt.rotation.z * 0.4)
     }
   }

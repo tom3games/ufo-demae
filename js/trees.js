@@ -61,7 +61,7 @@ function crownGeometry() {
 export function buildForest(scene, spots) {
   const n = spots.length
   const trunkGeo = new THREE.CylinderGeometry(0.16, 0.34, 1, 7, 1, true).translate(0, 0.5, 0)
-  const bark = new THREE.TextureLoader().load(`assets/${Q.tex}/japanese_cedar_bark_diff.webp`); bark.colorSpace = THREE.SRGBColorSpace; bark.wrapS = bark.wrapT = THREE.RepeatWrapping; bark.repeat.set(1, 6)
+  const bark = tex('japanese_cedar_bark', 'diff', true); bark.repeat.set(1, 6)
   const trunkMat = new THREE.MeshStandardMaterial({ map: bark, roughness: 0.95, color: 0xb8a898 })
   const crownMat = new THREE.MeshStandardMaterial({ map: crownTexture(), alphaTest: 0.45, alphaToCoverage: Q.msaa > 0, side: THREE.FrontSide, roughness: 0.9, metalness: 0 })
   const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, n)

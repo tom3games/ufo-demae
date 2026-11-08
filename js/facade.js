@@ -7,6 +7,7 @@ import * as THREE from 'three'
 import { Q } from './quality.js?v=1'
 
 const UP_W = 6, UP_H = 7.2, GF_H = 4.5
+export const facadeTime = { value: 0 }   // 火の揺らぎ（game.js が毎フレーム進める）
 const WALLS = {
   tiles: ['rectangular_facade_tiles', 2.0],
   panels: ['concrete_panels', 4.0],
@@ -30,7 +31,7 @@ export function createFacade() {
   let imgs = null
   draw()
   // 実写の壁を読み込んだら描き直す
-  const load = (name, m) => new Promise(res => { const u = `assets/${Q.tex}/${name}_${m}.webp`, LM = THREE.DefaultLoadingManager; LM.itemStart(u); const im = new Image(); im.onload = () => { LM.itemEnd(u); res(im) }; im.onerror = () => { LM.itemError(u); LM.itemEnd(u); res(null) }; im.src = u })   // ロード画面の数に入れる
+  const load = (name, m) => new Promise(res => { const u = `assets/${Q.tex}/${name}_${m}.webp`; const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = u })   // 準備完了は待たない（届くまでは単色の壁。2026-11-09 読み込みを速くした）
   Promise.all(Object.entries(WALLS).map(async ([k, [name]]) => [k, { a: await load(name, 'diff'), n: await load(name, 'nor_gl'), r: await load(name, 'rough') }]))
     .then(list => { imgs = Object.fromEntries(list); draw(); for (const t of Object.values(tex)) t.needsUpdate = true })
 
@@ -202,14 +203,15 @@ export function createFacade() {
     endCell()
     cell(2, 3, 2, 1, 2)
     band(0, 0, 2, 1, '#111418'); g.e.fillStyle = '#060708'; g.e.fillRect(0, 0, 2, 1)
-    band(0.04, 0.06, 1.92, 0.88, '#ff5a1f')
-    text('出前は 宙吊軒', 1, 0.62, 0.17, '#ffffff')
-    text('24H 駐車場 P', 1, 0.3, 0.17, '#ffd23a')
+    band(0.04, 0.06, 1.92, 0.88, '#8a3a1a')
+    text('避難所は 北の高台', 1, 0.62, 0.15, '#ffffff')
+    text('立入禁止 KEEP OUT', 1, 0.3, 0.15, '#ffd23a')
     endCell()
   }
 
   const material = new THREE.MeshStandardMaterial({ map: tex.a, normalMap: tex.n, roughnessMap: tex.r, emissiveMap: tex.e, emissive: 0xffffff, emissiveIntensity: 0.28, vertexColors: true, roughness: 1, metalness: 0 })
   material.onBeforeCompile = sh => {
+    sh.uniforms.uT = facadeTime
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec4 fac;\nattribute float fseed;\nvarying vec4 vFac;\nvarying float vSeed;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\nvFac = fac; vSeed = fseed;\n#ifdef USE_NORMALMAP\nvNormalMapUv = fac.xy;\n#endif')
@@ -217,38 +219,70 @@ export function createFacade() {
       .replace('#include <common>', `#include <common>
 varying vec4 vFac;
 varying float vSeed;
-vec2 fUv; vec2 fGx; vec2 fGy; float fLit;
+vec2 fUv; vec2 fGx; vec2 fGy; float fLit; float fFire; float fChar; float fSoot; vec2 fLoc;
+uniform float uT;
 float fHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`)
       .replace('void main() {', `void main() {
   {
     float st = floor(vFac.z + 0.5);
     vec2 cs = vec2(0.25, 0.25);
     vec2 rep = vFac.xy, local; vec2 org; vec2 size = cs;
-    fLit = 1.0;
+    fLit = 1.0; fFire = 0.0; fChar = 0.0; fSoot = 0.0;
     if (vFac.w > 0.5) {
       // 看板
       local = clamp(rep, 0.004, 0.996);
       if (st < 1.5) org = vec2(st, 3.0) * cs; else { org = vec2(0.5, 0.75); size = vec2(0.5, 0.25); }
+      // 廃都: 看板はほとんど消えている。たまに切れかけて瞬く
+      fLit = step(fHash(vec2(vSeed * 13.0, 1.0)), 0.18) * step(0.35, fract(sin(uT * 7.0 + vSeed * 50.0) * 43.0));
+      fChar = 0.35;
     } else if (rep.y < 1.0) {
       // 1階は区画（6m）ごとに違う店にする（同じ看板が並ばないように）
       float shop = floor(fHash(vec2(floor(rep.x), vSeed * 31.0)) * 7.999);
       local = vec2(fract(rep.x), clamp(rep.y, 0.0, 1.0)); org = vec2(mod(shop, 4.0), 1.0 + floor(shop / 4.0)) * cs;
+      // 1階の店: 灯りは消え、焼けた店と燃えている店がある
+      float hs = fHash(vec2(floor(rep.x), vSeed * 7.0));
+      fFire = step(hs, 0.07); fChar = step(hs, 0.55) * 0.8; fLit = 0.0;
     } else {
       local = fract(vec2(rep.x, rep.y - 1.0)); org = vec2(st, 0.0) * cs;
       // 部屋ごとに明かりが点いているかどうか（ビルごとに違う並び）
       vec2 room = floor(vec2(rep.x * (st > 1.5 && st < 2.5 ? 4.0 : 2.0), (rep.y - 1.0) * 2.0));
-      fLit = step(fHash(room + vSeed * 17.0), 0.08);
+      // 廃都: 部屋ごとに 燃えている（5%）・焼けて黒い（45%）・灯りの消えた部屋。燃えている部屋の上はすすで黒い
+      float hr = fHash(room + vSeed * 17.0);
+      fFire = step(hr, 0.07); fChar = step(0.05, hr) * step(hr, 0.5);
+      fSoot = step(fHash(room - vec2(0.0, 1.0) + vSeed * 17.0), 0.05) + step(fHash(room - vec2(0.0, 2.0) + vSeed * 17.0), 0.05) * 0.5;
+      fLit = 0.0;
     }
     local = clamp(local, 0.003, 0.997);
+    fLoc = local;
     fUv = org + local * size;
     fGx = dFdx(rep) * size; fGy = dFdy(rep) * size;
   }`)
-      .replace('#include <map_fragment>', '#ifdef USE_MAP\n diffuseColor *= textureGrad(map, fUv, fGx, fGy);\n#endif')
+      .replace('#include <map_fragment>', `#ifdef USE_MAP
+ diffuseColor *= textureGrad(map, fUv, fGx, fGy);
+#endif
+ {
+   // 廃都の色: 彩度を落として暗く、縦の汚れ・焼け・すす
+   float l = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
+   diffuseColor.rgb = mix(vec3(l), diffuseColor.rgb, 0.42) * 0.78;
+   diffuseColor.rgb *= 0.78 + 0.22 * fHash(vec2(floor(vFac.x * 5.0), vSeed * 3.0));
+   diffuseColor.rgb *= mix(1.0, 0.28, fChar);
+   diffuseColor.rgb *= 1.0 - clamp(fSoot, 0.0, 1.0) * (0.75 - 0.4 * fLoc.y);
+   diffuseColor.rgb *= 1.0 - fFire * 0.8;
+   // 窓（光る面の絵で見分ける）は中が暗い。割れて黒い
+   #ifdef USE_EMISSIVEMAP
+   float wm = clamp(dot(textureGrad(emissiveMap, fUv, fGx, fGy).rgb, vec3(0.5)) * 1.6, 0.0, 1.0);
+   diffuseColor.rgb *= mix(1.0, 0.3, wm);
+   #endif
+ }`)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = roughness;\n#ifdef USE_ROUGHNESSMAP\n roughnessFactor *= textureGrad(roughnessMap, fUv, fGx, fGy).g;\n#endif')
       .replace('#include <normal_fragment_maps>', '#ifdef USE_NORMALMAP_TANGENTSPACE\n vec3 mapN = textureGrad(normalMap, fUv, fGx, fGy).xyz * 2.0 - 1.0;\n mapN.xy *= normalScale;\n normal = normalize(tbn * mapN);\n#endif')
-      .replace('#include <emissivemap_fragment>', '#ifdef USE_EMISSIVEMAP\n totalEmissiveRadiance *= textureGrad(emissiveMap, fUv, fGx, fGy).rgb * fLit;\n#endif')
+      .replace('#include <emissivemap_fragment>', `#ifdef USE_EMISSIVEMAP
+ vec3 eTex = textureGrad(emissiveMap, fUv, fGx, fGy).rgb;
+ float flick = 0.65 + 0.35 * sin(uT * 8.0 + vSeed * 40.0 + fUv.x * 90.0) * sin(uT * 13.0 + fUv.y * 70.0);
+ totalEmissiveRadiance = totalEmissiveRadiance * eTex * fLit + vec3(0.9, 0.22, 0.03) * fFire * flick * (0.3 + 0.7 * (1.0 - fLoc.y)) * max(0.25, min(1.0, dot(eTex, vec3(0.33)) * 1.4));
+#endif`)
   }
-  material.customProgramCacheKey = () => 'facade3'
+  material.customProgramCacheKey = () => 'facade-ruin3'
 
   // 頂点を集める
   const P = [], N = [], C = [], U = [], F = [], SD = []

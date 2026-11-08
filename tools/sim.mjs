@@ -22,7 +22,7 @@ export function play(kind, seed, verbose = false) {
   }
   return { ...summary(R), cnt }
 }
-const kinds = only === 'missile' ? [] : only ? [only] : ['skilled', 'clumsy', 'idle']
+const kinds = only === 'missile' ? [] : only ? [only] : ['skilled', 'hooker', 'clumsy', 'runner', 'idle']
 for (const k of kinds) {
   const rows = []
   for (let s = 1; s <= N; s++) rows.push(play(k, s, N === 1))
@@ -30,10 +30,10 @@ for (const k of kinds) {
   const sc = rows.map(x => x.score).sort((a, b) => a - b)
   const ends = {}; rows.forEach(x => ends[x.end] = (ends[x.end] || 0) + 1)
   console.log(`${k.padEnd(8)} 点 平均${Math.round(avg(x => x.score))} 中央${sc[sc.length >> 1]} 最小${sc[0]} 最大${sc[sc.length - 1]}  終わり ${JSON.stringify(ends)}  時間${avg(x => x.t).toFixed(0)}秒 到達波${avg(x => x.wave).toFixed(1)}`)
-  console.log(`         丼 取り返し${avg(x => x.back).toFixed(1)}（空中${avg(x => x.caught).toFixed(1)} 拾い${avg(x => x.picked).toFixed(1)}）食べられ${avg(x => x.eaten).toFixed(1)} 猫${avg(x => x.dropped).toFixed(1)}  撃墜${avg(x => x.downed).toFixed(1)} 体当たり${avg(x => x.rams).toFixed(1)} 被弾${avg(x => x.hurt).toFixed(1)} 吸われ${avg(x => x.sucked).toFixed(1)} 最高つなぎ${avg(x => x.bestCombo).toFixed(1)}`)
-  console.log(`         追尾弾 撃たれ${avg(x => x.cnt.fire || 0).toFixed(1)} すれすれ${avg(x => x.near).toFixed(1)} 建物${avg(x => x.mWall).toFixed(1)} UFOに誘導${avg(x => x.mBait).toFixed(1)}  被弾の内訳 ${JSON.stringify(Object.fromEntries(['beam','laser','drone','missile'].map(s => [s, +avg(x => x.hurtBy[s] || 0).toFixed(1)])))}`)
+  console.log(`         撃墜${avg(x => x.downed).toFixed(1)} 体当たり${avg(x => x.rams).toFixed(1)} 被弾${avg(x => x.hurt).toFixed(1)} 最高連鎖${avg(x => x.bestChain).toFixed(1)} 最高倍率${avg(x => x.bestMult).toFixed(2)} ドローン${avg(x => x.drones).toFixed(1)} 弱点${avg(x => x.weak || 0).toFixed(1)} 迎え撃ち${avg(x => x.counters || 0).toFixed(1)} 弾かれ${avg(x => x.cnt.deflect || 0).toFixed(1)} 切られ${avg(x => x.cnt.zapCut || 0).toFixed(1)} 回避された${avg(x => x.cnt.dodge || 0).toFixed(1)} 無傷の波${avg(x => x.perfect).toFixed(1)} 波の秒数 ${rows[0].waveTimes.join('/')}`)
+  console.log(`         追尾弾 撃たれ${avg(x => x.cnt.fire || 0).toFixed(1)} すれすれ${avg(x => x.near).toFixed(1)} 建物${avg(x => x.mWall).toFixed(1)} UFOに誘導${avg(x => x.mBait).toFixed(1)}  被弾の内訳 ${JSON.stringify(Object.fromEntries(['beam','laser','drone','missile','hunter'].map(s => [s, +avg(x => x.hurtBy[s] || 0).toFixed(1)])))}`)
   const ranks = RANKS.map(v => rows.filter(x => x.score >= v).length)
-  console.log(`         判定の境目 ${RANKS.join('/')} 以上の数 ${ranks.join('/')} / ${N}`)
+  console.log(`         判定の境目 ${RANKS.join('/')}（S/A/B/C）以上の数 ${ranks.join('/')} / ${N}`)
 }
 
 // 追尾弾だけの試し: node tools/sim.mjs 12 missile（上の通しの後に回る）。40m 先から1発。上手い bot はふり切り、何もしないと当たる

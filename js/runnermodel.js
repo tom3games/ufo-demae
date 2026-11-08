@@ -2,6 +2,7 @@
 // 車の見た目（CarModel）と同じ口（group / update / updateParts / applyDents / resetParts / dispose）にして main.js から同じように扱う。
 // 原点は足元。+z が前
 import * as THREE from 'three'
+import { makePack } from './pack.js?v=1'
 
 const SKIN = 0xd9a47e
 const HOOD = 0xeeeae0   // 白い調理着（出前のバイト）
@@ -94,16 +95,10 @@ export class RunnerModel {
       return { sh, el, tip }
     }
     this.armL = arm(1); this.armR = arm(-1)
-    // 岡持ち（銀の出前箱）。左手に下げる。料理を持っている時だけ見せる
+    // 背中の電池パック（体力）
     {
-      const ok = this.okamochi = new THREE.Group()
-      const steel = mat(0xc9ced3, { metalness: 0.75, roughness: 0.3 })
-      const boxM = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.3, 0.22).translate(0, -0.24, 0), steel)
-      boxM.castShadow = true
-      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.03).translate(0, -0.04, 0), steel)
-      const label = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.005).translate(0, -0.22, 0.113), mat(0xb22a22))
-      ok.add(boxM, handle, label)
-      ok.position.set(0.33, 0.2, 0.04)   // 腰の横に下げる（腕に付けるとワイヤーで腕を上げた時に箱も空を向く）
+      const ok = this.okamochi = makePack()
+      ok.position.set(0, 0.32, -0.2)
       this.hips.add(ok)
     }
     // 脚

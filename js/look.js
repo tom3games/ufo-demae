@@ -15,16 +15,38 @@ let maxAniso = 8
 export function setAniso(renderer) { maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy()) }
 
 // 1つの素材（色・法線・粗さ）を読む。repeat はワールド座標で何 m ごとに繰り返すかを使う側で決める
+// 2026-11-09 読み込みを速くするため、準備完了を待たせない: まず 4x4 の仮の色で描き、画像が届いたら差し替える（届く順は色→法線→粗さ）
+const PH = { diff: [118, 112, 108], nor_gl: [128, 128, 255], rough: [235, 235, 235] }
+const queue = []
+let busy = 0
+function pump() {
+  while (busy < 4 && queue.length) {
+    const { t, url } = queue.shift(); busy++
+    const im = new Image()
+    im.onload = () => { t.dispose(); t.image = im; t.needsUpdate = true; busy--; pump() }   // 大きさが変わるので GPU 側は作り直す
+    im.onerror = () => { busy--; pump() }
+    im.src = url
+  }
+}
 export function tex(name, map, srgb = false) {
   const key = name + map
   if (cache.has(key)) return cache.get(key)
-  const t = loader.load(`assets/${Q.tex}/${name}_${map}.webp`)
+  const c = PH[map] || PH.diff, cv = document.createElement('canvas'); cv.width = cv.height = 4
+  const cx = cv.getContext('2d'); cx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; cx.fillRect(0, 0, 4, 4)
+  const t = new THREE.Texture(cv); t.needsUpdate = true
   t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true
   t.anisotropy = maxAniso
   if (srgb) t.colorSpace = THREE.SRGBColorSpace
   cache.set(key, t)
+  const url = `assets/${Q.tex}/${name}_${map}.webp`
+  if (map === 'diff') queue.splice(queue.findIndex(q => !q.diff) < 0 ? queue.length : queue.findIndex(q => !q.diff), 0, { t, url, diff: true }); else queue.push({ t, url })
+  // 最初の画面が出てから読み始める（本体の読み込みと取り合わない）
+  if (!startLazy.on) { startLazy.on = true; setTimeout(() => { startLazy.go = true; pump() }, 0) } else if (startLazy.go) pump()
   return t
 }
+const startLazy = { on: false, go: false }
+export function lazyStart() { startLazy.go = true; pump() }
 
 export function pbr(name, { repeat = 1, color = 0xffffff, roughness = 1, normalScale = 1, ...rest } = {}) {
   // 繰り返しは箱投影の倍率で決めるので、テクスチャ自体は共有する（読み込み前の複製は警告の元）

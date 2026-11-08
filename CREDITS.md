@@ -9,28 +9,17 @@
 - snd/loop_machine_03.mp3: 100 CC0 SFX #2 / rubberduck / CC0
 - snd/footstep_01.mp3: 100 CC0 SFX #2 / rubberduck / CC0
 - snd/footstep_02.mp3: 100 CC0 SFX #2 / rubberduck / CC0
-- snd/bgm_play.mp3: Catch me if you can (OpenGameArt) / poinl / CC0
-- snd/bgm_title.mp3: Acoustic comedy (OpenGameArt) / Almitory / CC0 を選択
 - snd/thwack-01.mp3: Thwack Sounds / AntumDeluge / CC0
 - snd/thwack-03.mp3: Thwack Sounds / AntumDeluge / CC0
-- snd/bell_ding1.mp3: Bell dings/chimes / PWL / CC0
 - snd/grunt_*.mp3: Little Grunts / crueltyinc / CC0
 - snd/glass_breaking_01.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
-- snd/bell_01.mp3: 100 CC0 SFX / rubberduck / CC0
 - snd/click_001.mp3: Interface Sounds / Kenney / CC0
 - snd/tick_002.mp3: Interface Sounds / Kenney / CC0
-- snd/jingles_SAX01.mp3: 85 Short music jingles / Kenney / CC0
-- snd/jingles_SAX03.mp3: 85 Short music jingles / Kenney / CC0
-- snd/jingles_PIZZA07.mp3: 85 Short music jingles / Kenney / CC0
-- snd/squeak_1.mp3: Squeak toy sounds / bart / CC0
-- snd/squeak_2.mp3: Squeak toy sounds / bart / CC0
-- snd/squeak_3.mp3: Squeak toy sounds / bart / CC0
 
 ## 人物（3D）
 - assets/chars/Ranger.glb, Rig_Medium_*.glb: KayKit Adventurers 2.0 / Kay Lousberg / CC0（色は塗り替え）
-- assets/chars/character-*.glb, aid-glasses.glb, Textures/colormap.png: Kenney Mini Characters / Kenney / CC0（通行人）
+- assets/chars/character-*.glb, aid-glasses.glb: Kenney Mini Characters / Kenney / CC0（v2 では読んでいない）
 - snd/wind_loop.wav: Howling wind / Tvabutzku1234 / CC0（Wikimedia Commons。14秒の継ぎ目なしループにした。空中で速い時の風）
-- snd/city_street_loop.wav: Sunday in the city street noise 1 / cori / Public domain（Wikimedia Commons。静かな通りの22.5秒ループ。街の環境音）
 - snd/laser_1.mp3: 63 Digital sound effects (lasers, phasers, space etc.) / Kenney / CC0
 - snd/laser_2.mp3: 63 Digital sound effects (lasers, phasers, space etc.) / Kenney / CC0
 - snd/beam_charge.mp3: 63 Digital sound effects (lasers, phasers, space etc.) / Kenney / CC0
@@ -45,7 +34,6 @@
 - snd/ufo_crash.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
 - snd/ufo_woo.mp3: Theremin puccini high（0.25〜2.65秒を切り出し） / Effebit / Public domain
 - snd/siren.mp3: Sirens and Alarm Noise / aquinn / CC0
-- snd/burp.mp3: File:Burp.ogg / ezwa / Public domain
-- snd/shutter.mp3: File:Auslösegeräusch SLR Serienaufnahme mit AF Schärfepriorität.ogg（頭の1.9秒） / Smial / CC0
 - snd/pop.mp3: 3 Pop Sounds / wubitog / CC0
-- snd/meow.mp3: Cat Purr & Meow / Kerzoven / CC0
+- snd/mother_hum.mp3: 100 CC0 SFX #2 / rubberduck / CC0
+- snd/radio_1.mp3, snd/radio_2.mp3: Frequency Static Sound Effects / bretbernhoft / CC0（static1・static3 から0.9秒を切り出し、無線の帯域に絞った）
