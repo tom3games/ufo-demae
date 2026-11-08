@@ -16,14 +16,15 @@ for (const [name, bt, opts] of [['chromium', chromium, {}], ['webkit', webkit, {
   p.on('requestfailed', r => errs.push('fail ' + r.url()))
   await p.goto(URL0 + '?t=' + Date.now(), { waitUntil: 'networkidle' })
   await p.waitForFunction(() => window.__ufoReady, null, { timeout: 15000 })
-  // 遊びの通し: 始める → 目の前の UFO を本物の指・マウスで押して体当たり → 何もせず連れ去られて伝票
+  // 遊びの通し: 始める → シールドが開いた UFO を本物の指・マウスで押して引っかけ、体当たり → 何もせず回収されて報告書
   if (opts.hasTouch) await p.tap('#btnStart'); else await p.click('#btnStart')
   await p.waitForFunction(() => ufo.R.phase === 'wave' && ufo.R.ufos.length >= 2, null, { timeout: 15000 })
-  const s = await p.evaluate(() => { ufo.dbg.pause(true); ufo.dbg.clearUfos(); const u = ufo.R.ufos[0]; u.frozen = false; ufo.dbg.placeUfo(u.id, 22, 9, 0); u.atkCd = 99; ufo.dbg.render(3); return { id: u.id, xy: ufo.ufoXY(u.id) } })
+  const s = await p.evaluate(() => { ufo.dbg.pause(true); ufo.dbg.clearUfos(); const u = ufo.R.ufos[0]; u.frozen = false; ufo.dbg.placeUfo(u.id, 22, 9, 0); u.atkCd = 99; u.open = 30; u.dodgeCd = 99; ufo.dbg.render(3); return { id: u.id, xy: ufo.ufoXY(u.id) } })
   if (opts.hasTouch) await p.touchscreen.tap(s.xy.x, s.xy.y); else await p.mouse.click(s.xy.x, s.xy.y)
   const flow = await p.evaluate(id => {
     ufo.dbg.step(1); const hooked = ufo.me.rope && ufo.me.rope.ufo === id
     const ram = ufo.dbg.stepUntil("ufo.log.some(e => e.t === 'ram')", 400) > 0
+    if (!hooked || !ram) throw new Error('hook/ram failed ' + JSON.stringify({ hooked, ram }))
     ufo.start(42); ufo.dbg.pause(true); ufo.dbg.stepUntil('ufo.R.over', 60 * 120); ufo.dbg.render(120)
     return { hooked, ram, end: ufo.R.end }
   }, s.id)
