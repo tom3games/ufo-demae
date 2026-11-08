@@ -14,7 +14,7 @@ import { createStreet, buildPoles } from '../shared/street.js?v=1'
 import { addTown, clearShopFront } from '../shared/town.js?v=1'
 import { buildPoles3d, buildHouses3d, trafficPool } from './street3d.js?v=1'
 import { carLights } from './carmodel.js?v=1'
-import { createRaid, stepRaid, syncRope, rayUfo, hookable, addUfo, summary, BASE, RANKS, U, BOSS, WAVES, multOf } from '../shared/ufo.js?v=1'
+import { createRaid, stepRaid, syncRope, rayUfo, canDash, startDash, addUfo, summary, BASE, RANKS, U, BOSS, WAVES, multOf } from '../shared/ufo.js?v=1'
 import { createUfoBot, ufoBotInput } from '../shared/ufobot.js?v=1'
 import { UfoView, MotherView, AttackView } from './ufo3d.js?v=1'
 import { drawReport } from './report.js?v=1'
@@ -35,12 +35,13 @@ const T = {
     start: '出撃', how: '作戦指示', lang: 'EN', more: 'ほかのゲーム', muteOn: '音 入', muteOff: '音 切', loading: '通信を確立中',
     howTitle: '作戦指示書', ok: '了解',
     howItems: [
-      'ビルにワイヤーを掛けて振り、<b>勢いのままUFOに体当たり</b>。速いほど強い',
-      'UFOは<b>シールド</b>を張っている。撃った直後だけ赤紫に光って開く。開いた時と、すぐ近くだけワイヤーが掛かる',
-      '<b>追跡機</b>が追ってくる。遅いと突っ込まれる。振り切るか、向き直って<b>迎え撃て</b>',
-      '<b>足元の輪・赤紫の線</b>から離れる。着地せずに当て続けると倍率が上がる'
+      'ビルにワイヤーを掛けて振る。速さ8以上で<b>突撃</b>できる（右下の大ボタン・UFOをタッチ）',
+      '突撃は<b>必ず当たる</b>。威力は突撃した時の速さ。振って速いほど一撃',
+      'シールドは<b>ひび</b>でダメージ半分。撃った直後の赤紫に光った所は<b>2倍</b>',
+      '<b>足元の輪・赤紫の線</b>から離れる。追跡機は正面から突撃で迎え撃て'
     ],
-    hintHook: '<small>管制</small>ビルに掛けて振れ。勢いのまま当たりに行け', hintHookPc: '<small>管制</small>ビルをクリックして振れ（Eで前のビルへ）。勢いのまま当たれ',
+    hintHook: '<small>管制</small>ビルに掛けて振れ。照準が水色になったら大ボタンで突撃', hintHookPc: '<small>管制</small>ビルをクリックして振れ（Eで前のビル）。照準が水色ならFかUFOをクリックで突撃',
+    needSwing: 'ビルで振ってから', needSpeed: '速さが足りない', noLine: '建物の陰', dashL: '突撃', speedL: '速さ',
     hintShield: '<small>管制</small>シールドだ。撃った直後に開く。速く当たれば破れる', hintHunt: '<small>管制</small>追跡機だ。止まるな。向き直って迎え撃て', hintZap: '<small>管制</small>掛けっぱなしにするな。切られるぞ',
     hintBeam: '<small>管制</small>足元の輪から離れろ。上から焼かれる', hintLock: '<small>管制</small>追尾弾だ。急に曲がるか、ビルの陰へ', hintLaser: '<small>管制</small>赤紫の線の上から横へ逃げろ', hintChain: '<small>管制</small>着地するな。当て続ければ倍率が上がる',
     keysPc: 'PC: WASD・矢印で移動　クリックでワイヤー（UFOなら引っかける）　E は前のUFOへ自動　Space ジャンプ　ドラッグで見回す',
@@ -51,12 +52,12 @@ const T = {
     waveS: n => n === 1 ? '敵影、接近' : n === 4 ? '最終波' : '次の敵影', waveB: n => `第${n}波`,
     bossS: '上空に巨大な反応', bossB: '母艦', clearS: '母艦 撃墜', clearB: '作戦完了', burnS: '主砲', burnB: '発射',
     extra: '<small>管制</small>増援を確認。まだ来る',
-    radio: ['<small>管制</small>まっすぐ飛ぶと避けられる。振り子で回り込め', '<small>管制</small>真上か後ろから当てろ。そこはシールドが薄い', '<small>管制</small>速く振って当てろ。遅いと弾かれる', '<small>管制</small>着地するな。連鎖が切れる', '<small>管制</small>追尾弾はビルに当てて消せ', '<small>管制</small>赤紫の線は横に逃げろ', '<small>管制</small>小型は逃げる。先に落とせ', '<small>管制</small>…こちら管制。まだ生きてるか', '<small>管制</small>北の高台は無事だ。持ちこたえろ', '<small>管制</small>ドローンには飛んだまま当たれ'],
+    radio: ['<small>管制</small>撃った直後を狙え。シールドが開いている', '<small>管制</small>速く振ってから突撃しろ。一撃で落ちる', '<small>管制</small>突撃の後はすぐ次のビルに掛けろ', '<small>管制</small>着地するな。連鎖が切れる', '<small>管制</small>追尾弾はビルに当てて消せ', '<small>管制</small>赤紫の線は横に逃げろ', '<small>管制</small>小型は逃げる。先に落とせ', '<small>管制</small>…こちら管制。まだ生きてるか', '<small>管制</small>北の高台は無事だ。持ちこたえろ', '<small>管制</small>ドローンには飛んだまま当たれ'],
     ram: n => n >= 3 ? '会心' : n === 2 ? '直撃' : '命中', boing: '<small>管制</small>遅すぎる。もっと速く当てろ',
     down: { saucer: '撃墜', big: '砲艦 撃墜', scout: '小型 撃墜', pod: '砲台 破壊', core: '芯 破壊' },
     hurt: { beam: '焼かれた', laser: '切られた', drone: 'ドローンに被弾', missile: '追尾弾に被弾', hunter: '追跡機に衝突' },
     hunters: '<small>管制</small>母艦から追跡機が出た。挟まれるな',
-    deflect: 'シールド', zapCut: 'ワイヤー切断', dodge: '避けられた', weak: { above: '真上から', behind: '背後から' }, counter: '迎え撃ち', lunge: '突っ込んでくる',
+    crack: 'ひび', open: '撃ち抜いた x2', counter: '迎え撃ち', lunge: '突っ込んでくる',
     mBait: '誘導命中', mWall: 'ビルでふり切った', near: 'ギリギリ', multUp: m => `倍率 x${m}`, droneKill: 'ドローン破壊', chainEnd: n => `${n}連鎖`,
     scouts: '<small>管制</small>小型がいる。逃げ足が速い', big: '<small>管制</small>砲艦だ。追尾弾に気をつけろ',
     boss: '<small>管制</small>母艦だ。縁の砲台から落とせ', coreOpen: '<small>管制</small>芯が出た。そこが弱点だ', bossDown: '<small>管制</small>母艦が落ちる…！', mainCannon: '<small>管制</small>主砲が来る…街が…',
@@ -81,12 +82,13 @@ const T = {
     start: 'Deploy', how: 'Briefing', lang: 'JP', more: 'More games', muteOn: 'Sound on', muteOff: 'Muted', loading: 'Establishing link',
     howTitle: 'BRIEFING', ok: 'Copy',
     howItems: [
-      'Swing from buildings and <b>ram UFOs with that momentum</b>. Faster hits hurt more',
-      'UFOs have <b>shields</b>. They open (magenta) right after firing. Your wire only hooks an open UFO or one very close',
-      '<b>Hunters</b> chase you. Too slow and they ram you. Outswing them or turn and <b>meet them head-on</b>',
-      'Leave <b>rings and magenta lines</b>. Keep hitting without landing to raise the multiplier'
+      'Swing from buildings. At 8 m/s or faster you can <b>dash</b> (big button, F, or tap a UFO)',
+      'The dash <b>always hits</b>. Its power is your speed when you launch it',
+      'Shields <b>crack</b> for half damage. Hit the magenta glow right after it fires for <b>x2</b>',
+      'Leave <b>rings and magenta lines</b>. Meet hunters head-on with a dash'
     ],
-    hintHook: '<small>HQ</small>Swing from buildings. Ram them with the momentum', hintHookPc: '<small>HQ</small>Click buildings to swing (E for the one ahead). Ram with momentum',
+    hintHook: '<small>HQ</small>Swing from buildings. When the reticle turns cyan, dash with the big button', hintHookPc: '<small>HQ</small>Click buildings to swing (E for the one ahead). Cyan reticle: F or click the UFO to dash',
+    needSwing: 'Swing first', needSpeed: 'Too slow', noLine: 'Blocked', dashL: 'DASH', speedL: 'Speed',
     hintShield: '<small>HQ</small>Shielded. It opens after firing. A fast hit breaks through', hintHunt: '<small>HQ</small>Hunter. Keep moving, or turn and meet it', hintZap: '<small>HQ</small>Do not hang on. It will cut your wire',
     hintBeam: '<small>HQ</small>Out of the ring. It burns from above', hintLock: '<small>HQ</small>Homing shot. Turn hard or break line of sight', hintLaser: '<small>HQ</small>Get off the magenta line, sideways', hintChain: '<small>HQ</small>Do not land. Keep hitting to raise the multiplier',
     keysPc: 'PC: WASD / arrows move · click to wire (click a UFO to hook it) · E hooks the UFO ahead · Space jump · drag to look',
@@ -97,12 +99,12 @@ const T = {
     waveS: n => n === 1 ? 'Contacts inbound' : n === 4 ? 'Final wave' : 'More contacts', waveB: n => `Wave ${n}`,
     bossS: 'Massive signal overhead', bossB: 'Mothership', clearS: 'Mothership down', clearB: 'Mission complete', burnS: 'Main cannon', burnB: 'FIRING',
     extra: '<small>HQ</small>Reinforcements spotted',
-    radio: ['<small>HQ</small>Fly straight and they dodge. Swing around them', '<small>HQ</small>Hit from above or behind. The shield is thin there', '<small>HQ</small>Swing fast. Slow hits bounce off', '<small>HQ</small>Do not land. You will lose the chain', '<small>HQ</small>Lure homing shots into buildings', '<small>HQ</small>Magenta lines: move sideways', '<small>HQ</small>Small ones run. Take them first', '<small>HQ</small>...HQ here. Still alive?', '<small>HQ</small>The north hill is holding. Hang on', '<small>HQ</small>Hit drones while airborne'],
+    radio: ['<small>HQ</small>Hit them right after they fire. The shield is open', '<small>HQ</small>Swing fast, then dash. One hit drops them', '<small>HQ</small>After a dash, wire the next building', '<small>HQ</small>Do not land. You will lose the chain', '<small>HQ</small>Lure homing shots into buildings', '<small>HQ</small>Magenta lines: move sideways', '<small>HQ</small>Small ones run. Take them first', '<small>HQ</small>...HQ here. Still alive?', '<small>HQ</small>The north hill is holding. Hang on', '<small>HQ</small>Hit drones while airborne'],
     ram: n => n >= 3 ? 'CRITICAL' : n === 2 ? 'DIRECT' : 'HIT', boing: '<small>HQ</small>Too slow. Hit it harder',
     down: { saucer: 'DOWN', big: 'GUNSHIP DOWN', scout: 'SCOUT DOWN', pod: 'TURRET DOWN', core: 'CORE DOWN' },
     hurt: { beam: 'Burned', laser: 'Cut', drone: 'Drone hit', missile: 'Homing hit', hunter: 'Rammed by hunter' },
     hunters: '<small>HQ</small>Hunters launched from the mothership. Do not get pinched',
-    deflect: 'SHIELDED', zapCut: 'WIRE CUT', dodge: 'DODGED', weak: { above: 'FROM ABOVE', behind: 'FROM BEHIND' }, counter: 'HEAD-ON', lunge: 'INCOMING',
+    crack: 'CRACK', open: 'PIERCED x2', counter: 'HEAD-ON', lunge: 'INCOMING',
     mBait: 'LURED HIT', mWall: 'SHOOK IT OFF', near: 'CLOSE CALL', multUp: m => `x${m} MULTIPLIER`, droneKill: 'DRONE DOWN', chainEnd: n => `${n} chain`,
     scouts: '<small>HQ</small>Scouts. They are quick', big: '<small>HQ</small>Gunship. Watch for homing shots',
     boss: '<small>HQ</small>Mothership. Take out the rim turrets', coreOpen: '<small>HQ</small>The core is exposed. Hit it', bossDown: '<small>HQ</small>It is going down...!', mainCannon: '<small>HQ</small>Main cannon... the city...',
@@ -230,12 +232,13 @@ function newModel() { if (model) { scene.remove(model.group); model.dispose() } 
 // ---------------------------------------------------------------- 入力
 const keys = new Set()
 const press = { jump: false }
-let pendingWire = null
+let pendingWire = null, pendingDash = null, lockId = null, slowT = 0, needT = 0
 addEventListener('keydown', e => {
   if (mode !== 'play') return
   if (e.repeat) return
   keys.add(e.code)
   if (e.code === 'KeyE') pendingWire = { at: null, key: true }
+  if (e.code === 'KeyF') tryDash(lockId)
   if (e.code === 'Space') { press.jump = true; e.preventDefault() }
   if (e.code === 'Escape' || e.code === 'KeyP') setPause(!paused)
 })
@@ -267,14 +270,12 @@ function aimAt(cx, cy) {
   ray.setFromCamera(ndc, camera)
   const o = ray.ray.origin, d = ray.ray.direction
   const hu = R && rayUfo(R, o.x, o.y, o.z, d.x, d.y, d.z, 400)
-  if (me && me.rope && !(hu && me.rope.ufo !== hu.u.id && me.rope.ufo == null)) { pendingWire = { at: null, sx: cx, sy: cy }; return }
+  if (hu) { tryDash(hu.u.id); return }   // UFO を押したら突撃（掛けない）
+  if (me && me.rope) { pendingWire = { at: null, sx: cx, sy: cy }; return }
   const minT = me ? Math.max(0, (me.x - o.x) * d.x + (me.y + 1 - o.y) * d.y + (me.z - o.z) * d.z - 1) : 0
   const b = rayHit(world, o.x, o.y, o.z, d.x, d.y, d.z, 400, minT)
   const tb = b ? Math.hypot(b.x - o.x, b.y - o.y, b.z - o.z) : Infinity
-  if (hu && hu.t < tb + 2) {
-    if (me && me.rope) { me.rope = null; me.events.push({ t: 'unwire', auto: true }) }
-    pendingWire = { at: { ufo: hu.u.id, x: hu.u.x, y: hu.u.y, z: hu.u.z }, sx: cx, sy: cy }; return
-  }
+
   let at = b
   if (me && !me.grounded && !me.climbing) {
     const g = groundRay(o, d, RUN.wireRange + 60)
@@ -315,9 +316,17 @@ const stick = { x: 0, y: 0, id: null }
   for (const b of document.querySelectorAll('.tbtn')) b.addEventListener('pointerdown', e => {
     e.preventDefault(); Snd.init()
     const k = b.dataset.k
-    if (k === 'wire') pendingWire = { at: null, key: true }
+    if (k === 'wire') { if (!tryDash(lockId, true)) pendingWire = { at: null, key: true } }
     else press[k] = true
   })
+}
+// 突撃: 照準の UFO へ。使えない時は理由を短く出す（大ボタンの時はビルへのワイヤーに回すので黙る）
+function tryDash(id, quiet = false) {
+  if (!me || !R || mode !== 'play' || paused) return false
+  const u = id != null && R.ufos.find(q => q.id === id)
+  if (u && canDash(R, me, u)) { pendingDash = id; return true }
+  if (!quiet && u && needT <= 0) { needT = 1; { const sv = Math.hypot(me.vx, me.vy, me.vz), far = Math.hypot(u.x - me.x, u.y - me.y, u.z - me.z) > U.dashRange; pop(!R.dashReady || me.grounded ? t('needSwing') : sv < U.dashMinV ? t('needSpeed') : far ? t('tooFar') : t('noLine'), Math.round(sv) + ' m/s') }; hint('swing', touchMode ? t('hintHook') : t('hintHookPc')) }
+  return false
 }
 function screenBasis() { const e = camera.matrixWorld.elements; let rx = e[0], rz = e[2], fx = -e[8], fz = -e[10]; const a = Math.hypot(rx, rz) || 1, b = Math.hypot(fx, fz) || 1; return { r: { x: rx / a, z: rz / a }, f: { x: fx / b, z: fz / b } } }
 const blockedFn = (ax, ay, az, bx, by, bz) => blocked(world, ax, ay, az, bx, by, bz)
@@ -522,20 +531,20 @@ function onRaidEvent(e) {
   }
   else if (e.t === 'ram') {
     sfx('clang', { vol: 0.9, rate: e.dmg >= 3 ? 0.8 : 1 }); sfx('zap', { vol: 0.5 })
-    hitStop = 0.04 + e.dmg * 0.025; flashA = Math.min(1, 0.4 + e.dmg * 0.2); fovKick = -4 - e.dmg * 2; fx.addShake(0.25 + e.dmg * 0.18)
-    fx.sparks(e.cx, e.cy, e.cz, 10 + e.dmg * 8, null, 8 + e.dmg * 4); fx.flash(e.cx, e.cy, e.cz)
-    pop(e.counter ? t('counter') : e.weak ? t('weak')[e.weak] : t('ram')(e.dmg), (e.chain >= 2 ? t('chainL')(e.chain) + '  ' : '') + Math.round(e.v) + ' m/s')
+    const k = Math.min(3, e.dmg)
+    hitStop = 0.06 + k * 0.025; flashA = Math.min(1, 0.5 + k * 0.2); fovKick = -6 - k * 2; fx.addShake(0.4 + k * 0.25)
+    fx.sparks(e.cx, e.cy, e.cz, 18 + k * 10, null, 10 + k * 4); fx.flash(e.cx, e.cy, e.cz); fx.debrisAt(e.cx, e.cy, e.cz, 8 + Math.round(k * 4), 0x6a6e76, { speed: 9, up: 5, size: 0.25 })
+    if (e.open) { slowT = 0.3; sfx('zap', { vol: 0.7, rate: 0.6 }); flashA = 1 }
+    pop(e.counter ? t('counter') : e.open ? t('open') : e.crack && !e.kill ? t('crack') : t('ram')(Math.ceil(e.dmg)), (e.chain >= 2 ? t('chainL')(e.chain) + '  ' : '') + Math.round(e.v) + ' m/s')
     floatPts(e.cx, e.cy + 1, e.cz, '+' + e.pts, e.mult >= 2 ? 'hot' : '')
     const sc = e.dmg * 40 + e.v + (e.kill ? 60 : 0); if (sc > photoScore) { photoScore = sc; snapNext = 2 }
   }
-  else if (e.t === 'boing') { sfx('bonk', { vol: 0.6, rate: 1.4 }); if (e.shield) { pop(t('deflect'), Math.round(e.v) + ' m/s'); sfx('zap', { vol: 0.4, rate: 0.6 }); hint('shield', t('hintShield')) } else if (Math.random() < 0.5) radio(t('boing'), 1.4) }
-  else if (e.t === 'deflect') { sfx('zap', { vol: 0.5, rate: 0.6 }); fx.sparks(e.x, e.y, e.z, 12, null, 7); pop(t('deflect'), ''); hint('shield', t('hintShield')) }
-  else if (e.t === 'zapCut') { sfx('zap', { vol: 0.8, rate: 0.5 }); fx.sparks(e.x, e.y, e.z, 16, null, 8); fx.addShake(0.4); pop(t('zapCut'), ''); hint('zap', t('hintZap')) }
-  else if (e.t === 'dodge') { sfxAt('whoosh', e.x, e.z, { vol: 0.5, rate: 1.3 }); if (me && Math.hypot(e.x - me.x, e.z - me.z) < 30) pop(t('dodge'), '') }
+  else if (e.t === 'boing') { sfx('bonk', { vol: 0.6, rate: 1.4 }) }
+  else if (e.t === 'dash') { sfx('whoosh', { vol: 0.9, rate: 0.8 }); sfx('zap', { vol: 0.4, rate: 1.6 }); fovKick = 10; flashA = Math.max(flashA, 0.25) }
   else if (e.t === 'hunt') { sfxAt('drone', e.x, e.z, { vol: 0.7, rate: 0.7 }); hint('hunt', t('hintHunt')) }
   else if (e.t === 'lunge') { sfx('charge', { vol: 0.7, rate: 1.6 }); redA = Math.max(redA, 0.35); pop(t('lunge'), '') }
   else if (e.t === 'hunters') { radio(t('hunters'), 2.4, 1); sfx('woo', { vol: 0.6, rate: 1.2 }) }
-  else if (e.t === 'down') { sfx('ufoDown', { vol: 0.8 }); floatPts(e.x, e.y + 3, e.z, (t('down')[e.kind] || '') + ' +' + e.pts, 'kill') }
+  else if (e.t === 'down') { sfx('ufoDown', { vol: 0.8 }); sfx('boom', { vol: 0.7, rate: 1.2 }); boomFx(e.x, e.y, e.z, e.kind === 'big' || e.kind === 'pod' ? 1.3 : 0.9); floatPts(e.x, e.y + 3, e.z, (t('down')[e.kind] || '') + ' +' + e.pts, 'kill') }
   else if (e.t === 'crash') { boomFx(e.x, e.y, e.z, e.kind === 'big' || e.kind === 'core' ? 1.4 : 1); sfxAt('boom', e.x, e.z, { vol: 1 }); sfxAt('crash', e.x, e.z, { vol: 0.7, delay: 0.1 }); sfxAt('glass', e.x, e.z, { vol: 0.35, rate: 0.8, delay: 0.25 }) }
   else if (e.t === 'beamWarn') { sfxAt('charge', e.x, e.z, { vol: 0.7 }); hint('beam', t('hintBeam')) }
   else if (e.t === 'beamOn') { sfxAt('burn', e.x, e.z, { vol: 0.7, rate: 0.8 }); fx.smoke(e.x, e.y + 0.5, e.z, { size: 3, life: 1.4, dark: 0.1 }) }
@@ -676,6 +685,7 @@ function stepOnce() {
   if (mode === 'play' && !paused && me && !R.over) {
     const inp = gather()
     me.events.length = 0
+    if (pendingDash != null) { startDash(R, me, pendingDash); pendingDash = null }
     syncRope(R, me)
     stepRunner(me, inp, STEP, world)
     street.collide(me)
@@ -686,6 +696,7 @@ function stepOnce() {
   } else if (mode === 'title' && demo) {
     const inp = ufoBotInput(demo.b, demo.r, R, world, STEP)
     demo.r.events.length = 0
+    if (inp.dash != null) startDash(R, demo.r, inp.dash)
     syncRope(R, demo.r); stepRunner(demo.r, inp, STEP, world); street.collide(demo.r)
     stepRaid(R, demo.r, STEP)
     for (const e of R.events) onRaidEvent(e)
@@ -700,7 +711,7 @@ function frame() {
   const now = performance.now()
   let dt = Math.min(0.1, (now - last) / 1000); last = now
   if (hitStop > 0) { hitStop -= dt; acc = 0 }
-  else if (!dbgPause) { acc += dt; let n = 0; while (acc >= STEP && n < 6) { stepOnce(); acc -= STEP; n++ } if (n >= 6) acc = 0 }
+  else if (!dbgPause) { if (slowT > 0) slowT -= dt; acc += dt * (slowT > 0 ? 0.3 : 1); let n = 0; while (acc >= STEP && n < 6) { stepOnce(); acc -= STEP; n++ } if (n >= 6) acc = 0 }
   else dt = 0
   render(dt || 0.016)
 }
@@ -751,20 +762,32 @@ function render(dt) {
     // 主砲が撃たれた: 画面が白く焼ける
     if (R.boss && R.boss.state === 'fire') whiteA = Math.min(1, R.boss.fireT / 2.6)
   }
-  // 大きいボタン（E）で掛かる所に輪（UFO なら水色の照準）
+  // ロックオン: 画面の中・40m 以内で、真ん中寄りで近い UFO。突撃できる時は水色、できない時は灰色
   aimMark.visible = false; aimUfoMark.visible = false
-  if (mode === 'play' && me && !me.rope && frameN % 4 === 0) {
-    const SF = screenBasis().f
-    aimMark.userData.p = findAnchor(world, me, Math.atan2(SF.x, SF.z)); aimMark.userData.ufo = false
+  if (mode === 'play' && me && R && frameN % 2 === 0) {
+    let best = null, bs = 1e9
+    camera.updateMatrixWorld()
+    for (const u of R.ufos) {
+      if (u.state !== 'fly' || (R.boss && R.boss.state === 'arrive')) continue
+      const d = Math.hypot(u.x - me.x, u.y - me.y, u.z - me.z); if (d > U.dashRange) continue
+      _v.set(u.x, u.y, u.z).project(camera); if (_v.z > 1 || Math.abs(_v.x) > 0.92 || Math.abs(_v.y) > 0.92) continue
+      const sc = Math.hypot(_v.x, _v.y * 0.7) + d / U.dashRange * 0.6 - (u.kind === 'hunter' && u.hunt === 'chase' ? 0.2 : 0)
+      if (sc < bs) { bs = sc; best = u }
+    }
+    lockId = best ? best.id : null
+    aimMark.userData.ready = !!best && canDash(R, me, best)
+    if (!me.rope && frameN % 4 === 0) { const SF = screenBasis().f; aimMark.userData.p = findAnchor(world, me, Math.atan2(SF.x, SF.z)) }
   }
-  const aimOn = mode === 'play' && me && !me.rope && !!aimMark.userData.p
-  if (aimOn) {
-    const p = aimMark.userData.p, isU = aimMark.userData.ufo
-    const uu = isU && R.ufos.find(q => q.id === p.ufo)
-    if (uu && Math.hypot(uu.x - me.x, uu.y - me.y, uu.z - me.z) > 10) { aimUfoMark.visible = true; aimUfoMark.position.set(uu.x, uu.y, uu.z); aimUfoMark.lookAt(camera.position); aimUfoMark.rotateZ(now * 1.5); aimUfoMark.scale.setScalar(uu.r * 1.15 * (1 + Math.sin(now * 8) * 0.05)) }
-    else if (!isU) { aimMark.visible = true; aimMark.position.set(p.x, p.y, p.z); aimMark.lookAt(camera.position); aimMark.scale.setScalar(Math.max(1, camera.position.distanceTo(aimMark.position) * 0.04)) }
+  needT = Math.max(0, needT - dt)
+  const lu = mode === 'play' && lockId != null && R && R.ufos.find(q => q.id === lockId && q.state === 'fly'), ready = !!(lu && aimMark.userData.ready)
+  if (lu && !(R.dash)) {
+    aimUfoMark.visible = true; aimUfoMark.position.set(lu.x, lu.y, lu.z); aimUfoMark.lookAt(camera.position); aimUfoMark.rotateZ(now * (ready ? 3 : 0.8))
+    aimUfoMark.scale.setScalar(lu.r * 1.25 * (ready ? 1 + Math.sin(now * 12) * 0.08 : 1))
+    aimUfoMark.children.forEach(o => { o.material.color.setHex(ready ? 0x7ff6ff : 0x8a8478); o.material.opacity = ready ? 0.95 : 0.5 })
   }
-  const wb = document.querySelector('.tbtn[data-k=wire]'); if (wb) { const k = aimOn ? (aimMark.userData.ufo ? 'u' : 'b') : ''; if (wb._aim !== k) { wb._aim = k; wb.classList.toggle('aim', !!k); wb.classList.toggle('aim-ufo', k === 'u') } }
+  if (mode === 'play' && me && !me.rope && !ready && aimMark.userData.p) { const p = aimMark.userData.p; aimMark.visible = true; aimMark.position.set(p.x, p.y, p.z); aimMark.lookAt(camera.position); aimMark.scale.setScalar(Math.max(1, camera.position.distanceTo(aimMark.position) * 0.04)) }
+  const wb = document.querySelector('.tbtn[data-k=wire]'); if (wb) { const k = ready ? 'u' : (mode === 'play' && me && !me.rope && aimMark.userData.p ? 'b' : ''); if (wb._aim !== k) { wb._aim = k; wb.classList.toggle('aim', !!k); wb.classList.toggle('aim-ufo', k === 'u'); wb.querySelector('.dash-l').textContent = k === 'u' ? t('dashL') : '' } }
+  if (mode === 'play' && me) { const sv = Math.hypot(me.vx, me.vy, me.vz), el = $('oSpeed'); const key = Math.round(sv) + (R.dashReady ? 'r' : ''); if (el._k !== key) { el._k = key; el.textContent = t('speedL') + ' ' + Math.round(sv); el.classList.toggle('ok', sv >= U.dashMinV && R.dashReady && !me.grounded) } }
   if (mode === 'play' && me) {
     const v3 = Math.hypot(me.vx, me.vy, me.vz); const wl = Snd.loops.wind; if (wl && wl.g) { const gv = me.grounded ? 0 : Math.min(0.35, Math.max(0, (v3 - 16) / 40)); wl.g.gain.value = Number.isFinite(gv) ? gv : 0 }
     const hl = Snd.loops.hum; if (hl && hl.g) { let nd = 1e9, hd = 1e9; for (const u of R.ufos) if (u.state === 'fly') { const d = Math.hypot(u.x - me.x, u.y - me.y, u.z - me.z); nd = Math.min(nd, d); if (u.kind === 'hunter' && u.hunt !== 'back') hd = Math.min(hd, d) } const gv = Math.min(0.4, Math.max(0, 1 - nd / 50) * 0.22 + Math.max(0, 1 - hd / 40) * 0.25); hl.g.gain.value = Number.isFinite(gv) ? gv : 0 }
@@ -814,7 +837,7 @@ window.ufo = {
     teleport: (x, y, z, yaw) => { Object.assign(me, { x, y, z, vx: 0, vy: 0, vz: 0, rope: null, climbing: null, grounded: y < 0.1 }); if (yaw != null) me.yaw = yaw },
     pressWire: (sx, sy) => aimAt(sx, sy), wireAuto: () => { pendingWire = { at: null, key: true } },
     spawn: (kind, x, y, z, extra = {}) => addUfo(R, kind, { x, y, z }, extra),
-    hook: id => { const u = R.ufos.find(q => q.id === id); if (u) pendingWire = { at: { ufo: u.id, x: u.x, y: u.y, z: u.z } } }, pressJump: () => { press.jump = true },
+    dash: id => { pendingDash = id }, tryDash: id => tryDash(id), get lockId() { return lockId }, pressJump: () => { press.jump = true },
     keys, stick, say, get model() { return model },
     render: n => { for (let i = 0; i < n; i++) render(1 / 30) },
     placeUfo: (id, dist = 14, up = 6, side = 0) => {

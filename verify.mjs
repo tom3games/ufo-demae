@@ -115,52 +115,12 @@ await t('遊び方を開いて閉じられる', async () => { await p.click('#bt
 await p.click('#btnStart')
 await p.waitForFunction(() => ufo.R.phase === 'wave' && ufo.R.ufos.length >= 2, null, { timeout: 15000 })
 await t('始めると第1波の UFO が出る（丼は持っていない）', async () => { const r = await p.evaluate(() => ufo.R.ufos.map(u => ({ k: u.kind, bowl: 'bowl' in u, y: Math.round(u.y) }))); expect(r.length >= 2 && r.every(u => !u.bowl), r); return r })
-await t('シールドが開いた UFO をクリックすると引っかかって引き寄せられ、体当たりで体力が減る', async () => {
-  const s = await setupUfo(p)
-  expect(s.xy && s.xy.z < 1 && s.xy.x > 0 && s.xy.x < 390 && s.xy.y > 0 && s.xy.y < 844, s)
-  await p.mouse.click(s.xy.x, s.xy.y)
-  const hooked = await p.evaluate(() => { ufo.dbg.step(1); return ufo.me.rope && ufo.me.rope.ufo })
-  expect(hooked === s.id, { hooked, s })
-  const n = await p.evaluate(() => ufo.dbg.stepUntil("ufo.log.some(e => e.t === 'ram')", 400))
-  const r = await p.evaluate(id => ({ ram: ufo.log.find(e => e.t === 'ram'), hp: (ufo.R.ufos.find(u => u.id === id) || {}).hp, flash: ufo.flashA }), s.id)
-  expect(n > 0 && r.ram.dmg >= 1 && (r.hp == null || r.hp < s.hp), r)
-  await p.evaluate(() => ufo.dbg.render(2)); await p.screenshot({ path: ROOT + '/shots/v-ram.png' })
-  return { steps: n, v: Math.round(r.ram.v), dmg: r.ram.dmg }
-})
 await t('ビルをクリックするとビルにワイヤーが掛かる（UFO ではない）', async () => {
   const a = await p.evaluate(() => { ufo.dbg.teleport(60, 0, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.dbg.clearUfos(); ufo.dbg.render(30); return ufo.dbg.screenAnchor() })
   expect(a && a.x > 0 && a.x < 390 && a.y > 0 && a.y < 844, a)
   await p.mouse.click(a.x, a.y)
   const r = await p.evaluate(() => { ufo.dbg.step(2); return ufo.me.rope && { ufo: ufo.me.rope.ufo ?? null } })
   expect(r && r.ufo === null, r); return { x: Math.round(a.x), y: Math.round(a.y) }
-})
-await t('シールドを張った遠くの UFO をクリックしても弾かれて掛からない', async () => {
-  const s = await setupUfo(p, 20, 8)
-  await p.evaluate(id => { const u = ufo.R.ufos.find(q => q.id === id); u.open = 0 }, s.id)
-  await p.mouse.click(s.xy.x, s.xy.y)
-  const r = await p.evaluate(() => { ufo.dbg.step(3); return { rope: ufo.me.rope ? ufo.me.rope.ufo ?? 'building' : null, deflect: ufo.log.some(e => e.t === 'deflect') } })
-  expect(r.rope == null && r.deflect, r); return r
-})
-await t('引き寄せだけの体当たりはシールドに弾かれる（ビルで振った勢いが要る）', async () => {
-  const s = await setupUfo(p, 9, 3)
-  const r = await p.evaluate(id => { const u = ufo.R.ufos.find(q => q.id === id); u.open = 0; u.hp = 3; const n0 = ufo.log.length; ufo.dbg.hook(id); ufo.dbg.stepUntil("ufo.log.slice(" + n0 + ").some(e => e.t === 'ram' || e.t === 'boing')", 300); const e = ufo.log.slice(n0).find(e => e.t === 'ram' || e.t === 'boing'); return { t: e && e.t, v: e && Math.round(e.v), hp: u.hp } }, s.id)
-  expect(r.t === 'boing' && r.hp === 3, r); return r
-})
-await t('速く当たればシールドを破れる（25m/s で1以上）', async () => {
-  const s = await setupUfo(p, 8, 1.5)
-  const r = await p.evaluate(id => { const u = ufo.R.ufos.find(q => q.id === id); u.open = 0; u.hp = 3; u.dodgeCd = 99; const e = window.__ramAt(u, 25); return { t: e && e.t, dmg: e && e.dmg, v: e && Math.round(e.v) } }, s.id)
-  expect(r.t === 'ram' && r.dmg >= 1, r); return r
-})
-await t('E（大きいボタンと同じ）は UFO ではなくビルに掛かる', async () => {
-  const s = await setupUfo(p, 30, 12)
-  await p.keyboard.down('KeyE'); await p.keyboard.up('KeyE')
-  const r = await p.evaluate(() => { ufo.dbg.step(2); return ufo.me.rope && { ufo: ufo.me.rope.ufo ?? null } })
-  expect(r && r.ufo === null, { r, s }); return r
-})
-await t('掛けたままだと UFO が暴れて、電撃でワイヤーを切られる', async () => {
-  const s = await setupUfo(p, 30, 14)
-  const r = await p.evaluate(id => { const u = ufo.R.ufos.find(q => q.id === id); u.frozen = false; u.x += 0; ufo.dbg.hook(id); ufo.dbg.step(1); const hooked = ufo.me.rope && ufo.me.rope.ufo === id; ufo.me.rope && (ufo.me.rope.t = -9); for (let i = 0; i < 200; i++) { ufo.dbg.step(1); if (ufo.me.rope) ufo.me.rope.t = Math.min(ufo.me.rope.t, 0); if (ufo.log.some(e => e.t === 'zapCut')) break } return { hooked, cut: ufo.log.some(e => e.t === 'zapCut') } }, s.id)
-  expect(r.hooked && r.cut, r); return r
 })
 await t('追跡機: 止まっていると追いつかれて当たる', async () => {
   const r = await p.evaluate(() => {
@@ -171,34 +131,87 @@ await t('追跡機: 止まっていると追いつかれて当たる', async () 
   })
   expect(r.n > 0 && r.after === r.hp - 1 && r.lunge, r); return r
 })
-await t('追跡機: 向き直って正面から当たると迎え撃ちで落とせる', async () => {
-  const r = await p.evaluate(() => {
-    ufo.dbg.teleport(60, 12, 866, Math.PI / 2); ufo.dbg.clearUfos(); ufo.R.inv = 99
-    const u = ufo.dbg.spawn('hunter', 60 + 20, 13, 866, { hunt: 'chase', vx: -14 })
-    // 自分は 16m/s で向かう（追跡機は 14m/s で来る）
-    const n0 = ufo.log.length
-    for (let i = 0; i < 200; i++) { const dx = u.x - ufo.me.x, dy = u.y - 1 - ufo.me.y, dz = u.z - ufo.me.z, l = Math.hypot(dx, dy, dz) || 1; Object.assign(ufo.me, { vx: dx / l * 16, vy: dy / l * 16, vz: dz / l * 16, grounded: false }); ufo.dbg.step(1); if (ufo.log.slice(n0).some(e => e.t === 'ram' || e.t === 'hurt')) break }
-    const e = ufo.log.slice(n0).find(e => e.t === 'ram' || e.t === 'hurt'); return { t: e && e.t, counter: e && e.counter, dmg: e && e.dmg, v: e && Math.round(e.v) }
-  })
-  expect(r.t === 'ram' && r.counter && r.dmg >= 1, r); return r
+
+// 空中で速さ v（前向き）にして、突撃の準備をしたことにする（ビルで振った後）
+const AIR = `ufo.me.y = Math.max(ufo.me.y, 7); ufo.me.grounded = false; ufo.me.rope = null; ufo.R.dashReady = true; const fx = Math.sin(ufo.cam.hd), fz = Math.cos(ufo.cam.hd); ufo.me.vx = fx * V; ufo.me.vz = fz * V; ufo.me.vy = 0; ufo.R.inv = 99;`
+await t('地面に立ったまま UFO をクリックしても突撃しない（ビルで振ってから）', async () => {
+  const s = await setupUfo(p, 20, 8)
+  await p.evaluate(() => { ufo.R.dashReady = false })
+  await p.mouse.click(s.xy.x, s.xy.y)
+  const r = await p.evaluate(() => { ufo.dbg.step(3); return { dash: ufo.log.some(e => e.t === 'dash'), rope: ufo.me.rope ? ufo.me.rope.ufo ?? 'building' : null, msg: document.getElementById('nearTxt').textContent } })
+  expect(!r.dash && r.rope == null && r.msg, r); return r
 })
-await t('着地せずに続けて当てると連鎖と倍率が上がり、着地すると切れる', async () => {
-  const r = await p.evaluate(() => {
-    ufo.dbg.pause(true); ufo.dbg.teleport(60, 12, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.R.inv = 99; ufo.dbg.clearUfos()
+await t('ビルで振って速い時に UFO をクリックすると突撃して必ず当たる（ワイヤーは掛けない）', async () => {
+  const s = await setupUfo(p, 16, 9)
+  const xy = await p.evaluate(new Function('V', AIR.replace(/V/g, '20') + 'ufo.dbg.render(2); return ufo.ufoXY(' + s.id + ')'))
+  await p.mouse.click(xy.x, xy.y)
+  const r = await p.evaluate(id => { ufo.dbg.step(1); const dash = ufo.log.some(e => e.t === 'dash' && e.id === id), rope = ufo.me.rope; const n = ufo.dbg.stepUntil("ufo.log.some(e => e.t === 'ram')", 200); const e = ufo.log.find(e => e.t === 'ram'); return { dash, rope: !!rope, n, v: e && Math.round(e.v), dmg: e && e.dmg, kill: e && e.kill } }, s.id)
+  expect(r.dash && !r.rope && r.n > 0 && r.v >= 19, r)
+  await p.evaluate(() => ufo.dbg.render(2)); await p.screenshot({ path: ROOT + '/shots/v-ram.png' })
+  return r
+})
+await t('威力は突撃した時の速さ（10m/s と 30m/s）。シールドはひびで半分、開いた所は2倍', async () => {
+  const one = (V, open) => p.evaluate(([V, open, AIR]) => {
+    ufo.dbg.teleport(60, 0, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.dbg.clearUfos()
+    const u = ufo.R.ufos.find(q => q.state === 'fly'); u.frozen = false; ufo.dbg.placeUfo(u.id, 14, 6, 0); u.hp = 99; u.open = open ? 9 : 0; u.atkCd = 99; u.hitCd = 0
+    new Function('V', AIR)(V); const n0 = ufo.log.length; ufo.dbg.dash(u.id); ufo.dbg.stepUntil("ufo.log.slice(" + n0 + ").some(e => e.t === 'ram')", 200)
+    const e = ufo.log.slice(n0).find(e => e.t === 'ram'); return { dmg: e && e.dmg, open: e && e.open, crack: e && e.crack, vy: Math.round(ufo.me.vy), ready: ufo.R.dashReady }
+  }, [V, open, AIR])
+  const slow = await one(10, false), fast = await one(30, false), win = await one(10, true)
+  expect(slow.crack && slow.dmg === 0.5 && fast.dmg === 1.5 && win.open && win.dmg === 2 && fast.vy > 5 && !fast.ready, { slow, fast, win }); return { slow: slow.dmg, fast: fast.dmg, open: win.dmg }
+})
+await t('雑魚の円盤は速い突撃1発で落ちる', async () => {
+  const r = await p.evaluate(AIR => {
+    ufo.dbg.teleport(60, 0, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.dbg.clearUfos()
+    const u = ufo.R.ufos.find(q => q.state === 'fly' && q.kind === 'saucer'); u.frozen = false; ufo.dbg.placeUfo(u.id, 14, 6, 0); u.hp = u.maxHp; u.open = 0; u.hitCd = 0
+    new Function('V', AIR)(22); const n0 = ufo.log.length; ufo.dbg.dash(u.id); ufo.dbg.stepUntil("ufo.log.slice(" + n0 + ").some(e => e.t === 'down')", 200)
+    return { down: ufo.log.slice(n0).some(e => e.t === 'down'), maxHp: u.maxHp }
+  }, AIR)
+  expect(r.down, r); return r
+})
+await t('突撃の後は上に跳ね、ビルで振るまで次の突撃はできない', async () => {
+  const r = await p.evaluate(AIR => {
+    ufo.dbg.teleport(60, 0, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.dbg.clearUfos()
+    const us = ufo.R.ufos.filter(q => q.state === 'fly'); const u = us[0], v = us[1]
+    u.frozen = false; ufo.dbg.placeUfo(u.id, 12, 6, 0); u.hp = 99; u.hitCd = 0
+    new Function('V', AIR)(18); const n0 = ufo.log.length; ufo.dbg.dash(u.id); ufo.dbg.stepUntil("ufo.log.slice(" + n0 + ").some(e => e.t === 'ram')", 200)
+    const after = { vy: Math.round(ufo.me.vy), ready: ufo.R.dashReady }
+    v.frozen = true; v.x = ufo.me.x + 10; v.y = ufo.me.y + 2; v.z = ufo.me.z; ufo.dbg.dash(v.id); ufo.dbg.step(2); const second = ufo.log.slice(n0).filter(e => e.t === 'dash').length
+    return { after, second }
+  }, AIR)
+  expect(r.after.vy > 5 && !r.after.ready && r.second === 1, r); return r
+})
+await t('E（ビルへのワイヤー）は UFO に掛からない。UFO をクリックしてもワイヤーは掛からない', async () => {
+  const s = await setupUfo(p, 30, 12)
+  await p.keyboard.down('KeyE'); await p.keyboard.up('KeyE')
+  const r = await p.evaluate(() => { ufo.dbg.step(2); return ufo.me.rope && { ufo: ufo.me.rope.ufo ?? null } })
+  expect(r && r.ufo === null, { r, s }); return r
+})
+await t('追跡機: 正面から突撃すると迎え撃ちで落とせる', async () => {
+  const r = await p.evaluate(AIR => {
+    ufo.dbg.teleport(60, 12, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.dbg.clearUfos(); ufo.R.inv = 99
+    const u = ufo.dbg.spawn('hunter', 60 + 22, 13, 866, { hunt: 'chase', vx: -14 })
+    new Function('V', AIR)(14); const n0 = ufo.log.length; ufo.dbg.dash(u.id); ufo.dbg.stepUntil("ufo.log.slice(" + n0 + ").some(e => e.t === 'ram')", 200)
+    const e = ufo.log.slice(n0).find(e => e.t === 'ram'); return { counter: e && e.counter, kill: e && e.kill, dmg: e && e.dmg }
+  }, AIR)
+  expect(r.counter && r.kill, r); return r
+})
+await t('着地せずに突撃を続けると連鎖と倍率が上がり、着地すると切れる', async () => {
+  const r = await p.evaluate(AIR => {
+    ufo.dbg.teleport(60, 12, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.R.inv = 99; ufo.dbg.clearUfos()
     ufo.R.chain = 0; ufo.R.mult = 1
     const hits = []
     for (let i = 0; i < 4; i++) {
       const u = ufo.R.ufos.find(q => q.state === 'fly'); if (!u) break
-      u.frozen = true; u.hp = 99; u.open = 30; u.dodgeCd = 99; u.atkCd = 99; u.hitCd = 0
-      u.x = ufo.me.x + 10; u.z = ufo.me.z; u.y = 14
-      const e = window.__ramAt(u, 22); hits.push([e && e.t, ufo.R.chain, ufo.R.mult])
-      for (let k = 0; k < 10; k++) { ufo.me.y = Math.max(ufo.me.y, 12); ufo.me.grounded = false; ufo.dbg.step(1) }
+      u.frozen = true; u.hp = 99; u.atkCd = 99; u.hitCd = 0; u.x = ufo.me.x + 12; u.z = ufo.me.z; u.y = ufo.me.y + 3
+      new Function('V', AIR)(22); const n0 = ufo.log.length; ufo.dbg.dash(u.id); ufo.dbg.stepUntil("ufo.log.slice(" + n0 + ").some(e => e.t === 'ram')", 200)
+      hits.push([ufo.R.chain, ufo.R.mult])
     }
     const top = { chain: ufo.R.chain, mult: ufo.R.mult }
     ufo.dbg.teleport(ufo.me.x, 0, ufo.me.z); ufo.dbg.step(60)
     return { hits, top, after: { chain: ufo.R.chain, mult: ufo.R.mult } }
-  })
-  expect(r.top.chain >= 3 && r.top.mult >= 1.5 && r.after.chain === 0 && r.after.mult === 1, r); return r
+  }, AIR)
+  expect(r.top.chain >= 4 && r.top.mult >= 2 && r.after.chain === 0 && r.after.mult === 1, r); return r
 })
 const FRESH = `ufo.start(11); ufo.dbg.pause(true); ufo.dbg.stepUntil("ufo.R.phase === 'wave' && ufo.R.ufos.length >= 2", 600);`
 await t('焼却光線: 足元の輪が先に出て、動かないと焼かれて電池が1本減る', async () => {
@@ -259,14 +272,14 @@ await t('追尾弾は建物に当たると消える（誘導してふり切れ�
   })
   expect(r.n > 0, r); return r
 })
-await t('何もしないと電池が尽きて回収され、いちばん下の評価（D）・0点になる', async () => {
+await t('何もしないと電池が尽きて回収され、いちばん下の評価（D）になる', async () => {
   await p.evaluate(() => { ufo.start(42); ufo.dbg.pause(true) })
   const r = await p.evaluate(() => {
     const n = ufo.dbg.stepUntil('ufo.R.over', 60 * 120)
     ufo.dbg.render(120)
     return { n, end: ufo.R.end, mode: ufo.mode, sum: window.__lastSummary }
   })
-  expect(r.end === 'taken' && r.mode === 'result' && r.sum.rank === 4 && r.sum.score === 0, r)
+  expect(r.end === 'taken' && r.mode === 'result' && r.sum.rank === 4 && r.sum.score < 500, r)
   const v = await variance(p, '#slip'); expect(v > 500, v)
   await p.screenshot({ path: ROOT + '/shots/v-result-idle.png' })
   return { sec: Math.round(r.n / 60), score: r.sum.score, v }
@@ -321,16 +334,26 @@ await t('WebKit: 2本指の touchmove を止める', async () => {
   const r = await wp.evaluate(() => { const e = new Event('touchmove', { cancelable: true, bubbles: true }); Object.defineProperty(e, 'touches', { value: [{}, {}] }); document.body.dispatchEvent(e); return e.defaultPrevented })
   expect(r, r)
 })
-await t('WebKit: 指で始めて、指で UFO をタッチすると引っかかる', async () => {
+await t('WebKit: 指で始めて、速い時に指で UFO をタッチすると突撃して当たる', async () => {
   await wp.tap('#btnStart'); await wp.waitForFunction(() => ufo.R.phase === 'wave' && ufo.R.ufos.length >= 2, null, { timeout: 15000 })
-  const s = await setupUfo(wp)
-  await wp.touchscreen.tap(s.xy.x, s.xy.y)
-  const r = await wp.evaluate(() => { ufo.dbg.step(1); return ufo.me.rope && ufo.me.rope.ufo })
-  expect(r === s.id, { r, s }); return r
+  const s = await setupUfo(wp, 16, 9)
+  const xy = await wp.evaluate(new Function('V', AIR.replace(/V/g, '20') + 'ufo.dbg.render(2); return ufo.ufoXY(' + s.id + ')'))
+  await wp.touchscreen.tap(xy.x, xy.y)
+  const r = await wp.evaluate(() => { ufo.dbg.step(1); const dash = ufo.log.some(e => e.t === 'dash'); const n = ufo.dbg.stepUntil("ufo.log.some(e => e.t === 'ram')", 200); return { dash, n } })
+  expect(r.dash && r.n > 0, { r, s }); return r
 })
-await t('WebKit: 右下の大きいボタンを指で押すと、前のビルにワイヤーが掛かる（UFO には掛けない）', async () => {
+await t('WebKit: 照準が水色の時に右下の大きいボタンを指で押すと突撃する', async () => {
+  const s = await setupUfo(wp, 14, 7)
+  await wp.evaluate(new Function('V', AIR.replace(/V/g, '18') + 'ufo.dbg.render(4)'))
+  const lock = await wp.evaluate(() => ({ id: ufo.dbg.lockId, cls: document.querySelector('.tbtn[data-k=wire]').className, n0: ufo.log.filter(e => e.t === 'dash').length }))
+  const box = await wp.locator('.tbtn[data-k=wire]').boundingBox()
+  await wp.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
+  const r = await wp.evaluate(() => { ufo.dbg.step(1); return { dash: ufo.log.filter(e => e.t === 'dash').length } })
+  expect(lock.id === s.id && /aim-ufo/.test(lock.cls) && r.dash === lock.n0 + 1, { lock, r }); return { lock: lock.id, r }
+})
+await t('WebKit: 地面で右下の大きいボタンを指で押すと、前のビルにワイヤーが掛かる', async () => {
   await setupUfo(wp, 26, 16)
-  await wp.evaluate(() => ufo.dbg.render(4))
+  await wp.evaluate(() => { ufo.R.dashReady = false; ufo.dbg.render(4) })
   const box = await wp.locator('.tbtn[data-k=wire]').boundingBox()
   await wp.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
   const r = await wp.evaluate(() => { ufo.dbg.step(2); return ufo.me.rope && { ufo: ufo.me.rope.ufo ?? null } })

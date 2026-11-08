@@ -2,12 +2,13 @@
 // 固定ステップで stepRaid を呼ぶ。runner（shared/runner.js）の状態を読み、体当たり・はね返り・ふっ飛び・連れ去りだけ runner を書き換える
 //
 // 遊び: 侵攻で焼けた街に UFO が来る。ワイヤーで飛んで体当たりして落とす。4波＋母艦
-//   体当たり: 当たった速さがそのまま強さ（10m/s から1、19m/s から2、30m/s から3）。UFO をタッチすると引っかけて引き寄せられる
+//   v3（2026-11-09 本人「体当たりだと難しい。爽快感がなくなる」）: 攻撃はロックオン突撃。40m 以内の UFO へ一直線に飛び込み必ず当たる。
+//   威力は発動した時の速さ（ビルで振って速いほど一撃）。速さ 8m/s 以上で、ビルのワイヤーで振った後だけ使える。シールドはひびでダメージ半分、撃った直後の開いた所は2倍
 //   連鎖: 地面に立たずに当てる・ギリギリでよける・ドローンを壊す・追尾弾を当て返すと連鎖が伸び、点の倍率が上がる（被弾・着地・6秒何もしないで切れる）
 //   敵の攻撃: 焼却光線（地面の輪で予告）・なぎ払いレーザー（地面の線で予告）・追いかけドローン・追尾弾（光って照準が出てから撃つ）
 //   負け: 装備の電池（HP）が0になると、いちばん近い UFO に回収される。母艦の主砲が溜まりきると街ごと焼かれる
 
-import { floorAt } from './runner.js?v=1'
+import { floorAt, blocked } from './runner.js?v=1'
 
 export const BASE = { x: 30, y: 0, z: 842, r: 7 }   // 開始の空き地（街の真ん中の広場の西）
 export const SHOP = BASE                             // town.js・street.js の中心（名前だけ残す）
@@ -25,11 +26,10 @@ export const U = {
   groundGap: 0.6,         // 地面にこれだけ立つと連鎖が切れる
   chainIdle: 6,           // これだけ何も起きないと連鎖が切れる
   between: 3.5,           // 波と波のあいだ
-  // 2026-11-09 本人「ワイヤーを繋ぐだけだから簡単すぎた」: シールド・掛けられる条件・回避
   open: 2.6,              // 撃った直後にシールドが開いている秒数
-  hookNear: 12,           // シールドが張っていても、これより近ければ掛けられる
-  hookZap: 2.0,           // 掛けたままこれだけたつと、電撃で切られる
-  dodgeV: 15, dodgeCd: 3, // まっすぐ近づくと横へ避ける
+  // v3 ロックオン突撃
+  dashRange: 42, dashMinV: 8, dashV: 30, dashMax: 2.2,   // 届く距離・使える速さ・突撃の速さ（発動時の速さ+6 と比べて大きい方）・打ち切り秒
+  dashBounce: 12, dashShield: 0.5, dashOpen: 2,          // 当てた後に上へ跳ねる速さ・シールドの時の倍率・開いた所の倍率
   // 2026-11-09 本人「UFOも追いかけてくるように」: 追跡機（ハンター）
   huntV: 14, lungeV: 21, lungeR: 9, slowV: 10, huntHitR: 2.6, huntCool: 2.8,
   bossSec: 120            // 母艦の主砲が溜まりきるまで
@@ -38,22 +38,22 @@ export const U = {
 export const MULT = [[15, 4], [10, 3], [6, 2], [3, 1.5], [0, 1]]
 export const multOf = n => MULT.find(([k]) => n >= k)[1]
 // 点（倍率を掛ける前）
-export const PTS = { hunter: 300, counter: 150, weak: 30, hit: 20, saucer: 150, big: 400, scout: 250, pod: 300, core: 1500, drone: 50, near: 40, bait: 200, wall: 60, waveFast: 600, waveSecPt: 8, perfect: 300, clear: 2000, hpLeft: 250 }
+export const PTS = { hunter: 300, counter: 150, open: 60, hit: 20, saucer: 150, big: 400, scout: 250, pod: 300, core: 1500, drone: 50, near: 40, bait: 200, wall: 60, waveFast: 600, waveSecPt: 8, perfect: 300, clear: 2000, hpLeft: 250 }
 
 // 波の中身。毎回どちらかの組み合わせ（v）を選ぶ。kind: saucer（偵察円盤 3発）/ big（砲艦 7発・レーザーと追尾弾）/ scout（小型 1発・速く逃げてドローンを落とす）
 // atk: その波で使う攻撃。maxM: 同時に飛ぶ追尾弾の上限
 export const WAVES = [
-  { v: [{ ufos: ['saucer', 'saucer'], extra: ['saucer'] }, { ufos: ['saucer', 'saucer'], extra: ['scout'] }], atk: ['beam'], first: 6, cd: [5.5, 8], maxAtk: 1, maxM: 0, droneV: 0 },
-  { v: [{ ufos: ['saucer', 'saucer', 'hunter'], extra: ['saucer', 'scout'] }, { ufos: ['saucer', 'scout', 'scout', 'hunter'], extra: ['saucer'] }], atk: ['beam', 'drone'], first: 4, cd: [5, 7.5], maxAtk: 2, maxM: 0, droneV: 9.5 },
-  { v: [{ ufos: ['saucer', 'big', 'hunter'], extra: ['saucer', 'saucer'] }, { ufos: ['big', 'scout', 'scout'], extra: ['hunter', 'hunter'] }], atk: ['beam', 'drone', 'laser', 'missile'], first: 4, cd: [4.6, 7], maxAtk: 2, maxM: 1, droneV: 10, mV: 14.5, mTurn: 1.45 },
-  { v: [{ ufos: ['saucer', 'saucer', 'big', 'hunter', 'hunter'], extra: ['saucer', 'big'] }, { ufos: ['big', 'big', 'hunter'], extra: ['scout', 'hunter', 'hunter'] }], atk: ['beam', 'drone', 'laser', 'missile'], first: 3, cd: [4.2, 6.5], maxAtk: 3, maxM: 2, droneV: 10.5, mV: 15.5, mTurn: 1.55 }
+  { v: [{ ufos: ['saucer', 'saucer', 'saucer'], extra: ['saucer', 'saucer'] }, { ufos: ['saucer', 'saucer', 'scout'], extra: ['saucer', 'scout', 'saucer'] }], atk: ['beam'], first: 6, cd: [5.5, 8], maxAtk: 1, maxM: 0, droneV: 0 },
+  { v: [{ ufos: ['saucer', 'saucer', 'saucer', 'hunter'], extra: ['saucer', 'saucer', 'scout'] }, { ufos: ['saucer', 'scout', 'scout', 'saucer', 'hunter'], extra: ['saucer', 'saucer'] }], atk: ['beam', 'drone'], first: 4, cd: [5, 7.5], maxAtk: 2, maxM: 0, droneV: 9.5 },
+  { v: [{ ufos: ['saucer', 'saucer', 'saucer', 'big', 'hunter'], extra: ['saucer', 'saucer', 'scout'] }, { ufos: ['big', 'scout', 'scout', 'saucer', 'saucer'], extra: ['hunter', 'hunter', 'saucer'] }], atk: ['beam', 'drone', 'laser', 'missile'], first: 4, cd: [4.6, 7], maxAtk: 2, maxM: 1, droneV: 10, mV: 14.5, mTurn: 1.45 },
+  { v: [{ ufos: ['saucer', 'saucer', 'saucer', 'saucer', 'big', 'hunter'], extra: ['saucer', 'big', 'saucer'] }, { ufos: ['big', 'big', 'saucer', 'saucer', 'hunter'], extra: ['scout', 'hunter', 'saucer', 'saucer'] }], atk: ['beam', 'drone', 'laser', 'missile'], first: 3, cd: [4.2, 6.5], maxAtk: 3, maxM: 2, droneV: 10.5, mV: 15.5, mTurn: 1.55 }
 ]
 export const BOSS = { hunterEvery: 22, maxHunters: 2, y: 36, rimR: 15, pods: 3, podHp: 3, coreHp: 7, coreY: 22, droneV: 11, mV: 16, mTurn: 1.6, maxM: 2, maxAtk: 3, cd: [3.6, 5.6] }
 const KIND = {
-  saucer: { hp: 3, r: 3.3, hh: 1.3, v: 7, alt: [20, 34] },
-  big: { hp: 5, r: 5.2, hh: 1.9, v: 5, alt: [22, 32] },
+  saucer: { hp: 1, r: 3.3, hh: 1.3, v: 7, alt: [20, 34] },
+  big: { hp: 4, r: 5.2, hh: 1.9, v: 5, alt: [22, 32] },
   scout: { hp: 1, r: 1.9, hh: 0.9, v: 12, alt: [16, 28] },
-  hunter: { hp: 2, r: 2.3, hh: 1.0, v: 14, alt: [12, 20] },
+  hunter: { hp: 1.5, r: 2.3, hh: 1.0, v: 14, alt: [12, 20] },
   pod: { hp: BOSS.podHp, r: 2.8, hh: 1.6, v: 0 },
   core: { hp: BOSS.coreHp, r: 4.4, hh: 2.2, v: 3 }
 }
@@ -77,7 +77,7 @@ export function createRaid(world, seed = 1, opt = {}) {
   const R = {
     world, seed, rnd, t: 0, wave: -1, phase: 'intro', phaseT: 2.5, hp: U.hp, inv: 0,
     ufos: [], beams: [], lasers: [], drones: [], missiles: [], events: [], nextId: 1,
-    taken: null, chain: 0, mult: 1, chainT: 0, groundT: 0, boss: null, over: false, end: null,
+    taken: null, dash: null, dashReady: false, chain: 0, mult: 1, chainT: 0, groundT: 0, boss: null, over: false, end: null,
     plan: WAVES.map(W => Math.floor(rnd() * W.v.length)),   // 毎回ちがう組み合わせ
     waveHurt: 0,
     stats: { score: 0, downed: 0, rams: 0, hooks: 0, hurt: 0, hurtBy: {}, bestChain: 0, bestMult: 1, near: 0, mBait: 0, mWall: 0, drones: 0, bestRam: 0, waveTimes: [], perfect: 0, kills: {} },
@@ -208,8 +208,11 @@ export function stepRaid(R, r, dt) {
     }
   } else if (R.phase === 'outro' && R.phaseT > 4.2) finish(R, 'clear')
 
+  // ビルのワイヤーで振ったら突撃の準備ができる
+  if (r.rope && r.rope.ufo == null) R.dashReady = true
+  if (R.dash) stepDash(R, r, dt)
   // 回収されている間は自分の動きを上書きする
-  if (R.taken) stepTaken(R, r, dt)
+  if (R.taken) { R.dash = null; stepTaken(R, r, dt) }
 
   if (R.boss) stepBoss(R, r, dt)
   for (const u of R.ufos) stepUfo(R, u, r, dt)
@@ -217,22 +220,73 @@ export function stepRaid(R, r, dt) {
   stepBeams(R, r, dt); stepLasers(R, r, dt); stepDrones(R, r, dt); stepMissiles(R, r, dt)
 }
 
-// UFO にワイヤーを掛けられるか: シールドが開いている（撃った直後・追跡中）か、すぐ近く
-export function hookable(R, u, r) {
-  if (!u || u.state !== 'fly') return false
-  if (u.open > 0) return true
-  return Math.hypot(u.x - r.x, u.y - (r.y + 1.2), u.z - r.z) <= U.hookNear && u.kind !== 'big'
-}
-// ロープの先を引っかけた UFO に合わせる（stepRunner の前に呼ぶ）。UFO がいなくなったら外す。シールドに当たったら弾かれる
+// v3: UFO にワイヤーは掛けない（突撃に一本化）。古い呼び出しのために残す
 export function syncRope(R, r) {
-  if (!r.rope || r.rope.ufo == null) return
-  const u = R.ufos.find(q => q.id === r.rope.ufo && q.state === 'fly')
-  if (!u) { r.rope = null; r.events.push({ t: 'unwire', auto: true }); return }
-  if (!r.rope.ok) {
-    if (!hookable(R, u, r)) { r.rope = null; R.events.push({ t: 'deflect', id: u.id, x: u.x, y: u.y, z: u.z }); return }
-    r.rope.ok = true
+  if (r.rope && r.rope.ufo != null) { r.rope = null }
+}
+// 突撃できるか（ビルで振った後・速さ 8m/s 以上・空中・40m 以内で見通せる）
+export function canDash(R, r, u) {
+  if (!u || u.state !== 'fly' || R.dash || R.taken || R.over || !R.dashReady || r.grounded || r.climbing) return false
+  if (R.boss && R.boss.state === 'arrive') return false
+  if (Math.hypot(r.vx, r.vy, r.vz) < U.dashMinV) return false
+  const d = Math.hypot(u.x - r.x, u.y - (r.y + 1), u.z - r.z)
+  if (d > U.dashRange) return false
+  return !blocked(R.world, r.x, r.y + 1.2, r.z, u.x, u.y, u.z) || !blocked(R.world, r.x, r.y + 1.2, r.z, u.x, u.y + u.hh + 1, u.z)
+}
+// bot と画面の既定の狙い: 前（yaw）寄りで近い UFO
+export function lockTarget(R, r, yaw = null) {
+  let best = null, bs = -1e9
+  for (const u of R.ufos) {
+    if (u.state !== 'fly') continue
+    const dx = u.x - r.x, dz = u.z - r.z, d = Math.hypot(dx, u.y - r.y, dz)
+    if (d > U.dashRange) continue
+    let s2 = -d / U.dashRange + (u.kind === 'core' ? 0.6 : 0) + (u.kind === 'hunter' && u.hunt === 'chase' ? 0.3 : 0)
+    if (yaw != null) s2 += ((dx * Math.sin(yaw) + dz * Math.cos(yaw)) / (Math.hypot(dx, dz) || 1)) * 0.8
+    if (s2 > bs && canDash(R, r, u)) { bs = s2; best = u }
   }
-  r.rope.x = u.x; r.rope.y = u.y; r.rope.z = u.z
+  return best
+}
+export function startDash(R, r, id) {
+  const u = R.ufos.find(q => q.id === id)
+  if (!canDash(R, r, u)) return false
+  const v0 = Math.hypot(r.vx, r.vy, r.vz)
+  R.dash = { id, v0, t: 0, V: Math.max(U.dashV, v0 + 6) }
+  R.dashReady = false
+  if (r.rope) { r.rope = null; r.events.push({ t: 'unwire', auto: true }) }
+  ev(R, { t: 'dash', id, v0, x: r.x, y: r.y, z: r.z, open: u.open > 0 && u.kind !== 'pod' && u.kind !== 'hunter' })
+  return true
+}
+function stepDash(R, r, dt) {
+  const D = R.dash; D.t += dt
+  const u = R.ufos.find(q => q.id === D.id && q.state === 'fly')
+  if (!u || D.t > U.dashMax) { R.dash = null; return }
+  const dx = u.x - r.x, dy = u.y - (r.y + 1), dz = u.z - r.z, d = Math.hypot(dx, dy, dz) || 1
+  r.vx = dx / d * D.V; r.vy = dy / d * D.V; r.vz = dz / d * D.V; r.grounded = false; r.climbing = null; r.stun = 0
+  R.inv = Math.max(R.inv, 0.12)
+  if (d < u.r + 1.8 || d < D.V * dt * 1.5) dashHit(R, u, r)
+}
+function dashHit(R, u, r) {
+  const D = R.dash; R.dash = null
+  const counter = u.kind === 'hunter' && (u.vx * (r.x - u.x) + u.vy * (r.y - u.y) + u.vz * (r.z - u.z)) > 0
+  const eff = D.v0 + (counter ? Math.hypot(u.vx, u.vy, u.vz) : 0)
+  const open = u.open > 0 && u.kind !== 'pod' && u.kind !== 'hunter'
+  const crack = !open && u.kind !== 'pod' && u.kind !== 'hunter'
+  let dmg = Math.max(1, eff / 10) * (open ? U.dashOpen : crack ? U.dashShield : 1)
+  dmg = Math.round(dmg * 10) / 10
+  // 跳ね返る: 少し上と後ろへ（次のビルに掛けて次の突撃へ）
+  const l = Math.hypot(r.vx, r.vz) || 1
+  r.vx = -r.vx / l * 4 + u.vx * 0.3; r.vz = -r.vz / l * 4 + u.vz * 0.3; r.vy = U.dashBounce
+  u.hitCd = 0.5; u.hp -= dmg; u.flash = 1; u.wob = 1
+  if (u.kind === 'hunter') { u.cool = U.huntCool; u.hunt = 'back' }
+  R.stats.rams++; R.stats.vSum = (R.stats.vSum || 0) + D.v0; R.stats.bestRam = Math.max(R.stats.bestRam, D.v0); R.groundT = 0
+  if (open) R.stats.opens = (R.stats.opens || 0) + 1
+  if (counter) R.stats.counters = (R.stats.counters || 0) + 1
+  const kill = u.hp <= 0.01
+  // 速いほど点も連鎖も伸びる（20m/s 以上は連鎖+2）
+  if (D.v0 >= 20) { R.chain++; R.chainT = 0 }
+  const pts = score(R, PTS.hit * Math.ceil(dmg) + Math.round(D.v0 * 3) + (open ? PTS.open : 0) + (counter ? PTS.counter : 0), 'hit', { x: u.x, y: u.y, z: u.z }, true)
+  ev(R, { t: 'ram', id: u.id, kind: u.kind, x: u.x, y: u.y, z: u.z, cx: (r.x + u.x) / 2, cy: (r.y + 1 + u.y) / 2, cz: (r.z + u.z) / 2, v: D.v0, dmg, kill, open, crack, counter, chain: R.chain, mult: R.mult, pts })
+  if (kill) downUfo(R, u, -r.vx * 0.5, -r.vz * 0.5)
 }
 // 画面と bot の狙い: 線が当たる UFO（球で見る。少し大きめに当てる）
 export function rayUfo(R, ox, oy, oz, dx, dy, dz, maxT = 400) {
@@ -294,28 +348,13 @@ function stepUfo(R, u, r, dt) {
     u.vx += ((ddx / l) * sp - u.vx) * Math.min(1, dt * 1.6); u.vz += ((ddz / l) * sp - u.vz) * Math.min(1, dt * 1.6)
     // 横ゆれ（止まって見えないように）と、まっすぐ近づかれた時の回避
     u.vx += -ddz / l * Math.sin(u.t * 0.9 + u.id) * K.v * 0.6 * dt; u.vz += ddx / l * Math.sin(u.t * 0.9 + u.id) * K.v * 0.6 * dt
-    if (!hooked && !busy && u.dodgeCd <= 0) {
-      const px = u.x - r.x, py = u.y - (r.y + 1), pz = u.z - r.z, pd = Math.hypot(px, py, pz) || 1, pv = Math.hypot(r.vx, r.vy, r.vz) || 1
-      const cos = (px * r.vx + py * r.vy + pz * r.vz) / (pd * pv)
-      const straight = !r.rope || r.rope.ufo != null   // ビルの振り子は弧を描くので読めない。まっすぐ飛ぶ・引き寄せは読まれる
-      if (straight && pv > 12 && pd < 26 && pd > 4 && cos > 0.93) {
-        const sx = -pz / pd, sz = px / pd, sg = R.rnd() < 0.5 ? 1 : -1, dv = U.dodgeV * (u.kind === 'scout' ? 1.25 : u.kind === 'big' ? 0.6 : 1)
-        u.vx += sx * sg * dv; u.vz += sz * sg * dv; u.vy += 3; u.dodgeCd = U.dodgeCd * (u.kind === 'big' ? 1.6 : 1)
-        ev(R, { t: 'dodge', id: u.id, x: u.x, y: u.y, z: u.z })
-      }
-    }
     // 高さ: 決めた高さ。下の建物より 10m 上。降りてくる時は速く。引っかけられている間は少し下がる
     const floor = topAt(R.world, u.x, u.z)
     const ty = Math.max(u.alt, floor + 11) - (hooked ? 6 : 0) + Math.sin(u.t * 1.3 + u.id) * 0.8
     u.vy += ((ty - u.y) * (u.y > ty + 8 ? 1.4 : 0.9) - u.vy) * Math.min(1, dt * 2)
     u.x += u.vx * dt; u.y += u.vy * dt; u.z += u.vz * dt
   }
-  if (r.rope && r.rope.ufo === u.id) {
-    u.hooked += dt; u.wob = Math.min(1, u.wob + dt * 3)
-    // 掛けられた UFO は暴れて振り回し、長く掛けていると電撃でワイヤーを切る
-    const a = u.t * 7 + u.id; u.vx += Math.sin(a) * 26 * dt; u.vz += Math.cos(a * 1.3) * 26 * dt
-    if (u.hooked > U.hookZap) { r.rope = null; r.stun = Math.max(r.stun || 0, 0.4); r.vx *= 0.4; r.vz *= 0.4; r.vy = Math.min(r.vy, 2); u.hooked = 0; ev(R, { t: 'zapCut', id: u.id, x: u.x, y: u.y, z: u.z }) }
-  } else { u.hooked = 0; u.wob = Math.max(0, u.wob - dt * 2) }
+  { u.hooked = 0; u.wob = Math.max(0, u.wob - dt * 2) }
   ramCheck(R, u, r)
   if (!R.noAttack && R.phase !== 'outro') ufoAttack(R, u, r, dt)
 }
@@ -342,54 +381,26 @@ function stepHunter(R, u, r, dt) {
   const fl = topAt(R.world, u.x, u.z) + 2.5; if (u.y < fl) { u.y = fl; u.vy = Math.max(0, u.vy) }
   if (insideSolid(R.world, u.x, u.y, u.z)) { u.y += 6 * dt * 4; u.vy = Math.max(u.vy, 6) }
   // 当たった: 自分が遅ければ自分が被弾。速ければ体当たり判定（ramCheck）が先に取る
-  if (u.cool <= 0 && !R.taken && u.hitCd <= 0) {
+  if (u.cool <= 0 && !R.taken && !R.dash && u.hitCd <= 0) {
     const d = Math.hypot(r.x - u.x, r.y + 1 - u.y, r.z - u.z)
     const rv = Math.hypot(r.vx - u.vx, r.vy - u.vy, r.vz - u.vz), mine = (r.vx * (u.x - r.x) + r.vy * (u.y - r.y - 1) + r.vz * (u.z - r.z)) / (d || 1)
-    if (d < U.huntHitR && !(mine > 6 && rv >= U.ramMin)) { u.cool = U.huntCool; u.hunt = 'back'; hurt(R, r, 'hunter', u.x, u.z) }
+    if (d < U.huntHitR) { u.cool = U.huntCool; u.hunt = 'back'; hurt(R, r, 'hunter', u.x, u.z) }
   }
 }
 
+// 突撃でない接触: 跳ね返るだけ（ダメージ無し）。追跡機には当てられる
 function ramCheck(R, u, r) {
-  if (u.hitCd > 0 || u.state !== 'fly' || R.taken) return
+  if (u.hitCd > 0 || u.state !== 'fly' || R.taken || R.dash) return
   const cx = r.x, cy = r.y + 1.0, cz = r.z
   const dx = cx - u.x, dy = cy - u.y, dz = cz - u.z, dh = Math.hypot(dx, dz)
   const k = (dh / (u.r + 0.8)) ** 2 + (dy / (u.hh + 1.0)) ** 2
   if (k >= 1) return
-  const rvx = r.vx - u.vx, rvy = r.vy - u.vy, rvz = r.vz - u.vz, v = Math.hypot(rvx, rvy, rvz)
-  const hooked = r.rope && r.rope.ufo === u.id
-  let dmg = v >= U.ram3 ? 3 : v >= U.ram2 ? 2 : v >= U.ramMin ? 1 : 0
-  // 弱点: 真上から（落ちながら）か後ろから（UFO の進む向きと同じ向きに当たる）。シールドが無い所
-  const uv = Math.hypot(u.vx, u.vz), above = dy > u.hh * 0.5 && r.vy < -2, behind = uv > 2 && (r.vx * u.vx + r.vz * u.vz) / (uv * (Math.hypot(r.vx, r.vz) || 1)) > 0.5
-  const weak = (above || behind) && dmg > 0
-  // シールド: 張っている時は1段弱くなる（19m/s 未満は弾かれる）。砲艦は装甲もあり、開いていても1段弱い
-  const shielded = u.open <= 0 && !weak
-  let armor = (shielded ? 1 : 0) + (u.kind === 'big' && shielded ? 1 : 0)
-  if (weak) dmg += 1
-  dmg = Math.max(0, dmg - armor)
-  // 追跡機を迎え撃った（向かってくる所に正面から）
-  const counter = u.kind === 'hunter' && dmg > 0 && (u.vx * (r.x - u.x) + u.vz * (r.z - u.z)) > 0
-  // はね返る（上へ。地面に戻さず次の UFO へつなげる）
   const l = Math.hypot(dx, dy, dz) || 1
-  r.vx = dx / l * U.bounceOut + u.vx * 0.5; r.vz = dz / l * U.bounceOut + u.vz * 0.5; r.vy = Math.max(U.bounceUp * (dmg ? 1 : 0.6), dy / l * U.bounceOut)
+  r.vx = dx / l * U.bounceOut + u.vx * 0.5; r.vz = dz / l * U.bounceOut + u.vz * 0.5; r.vy = Math.max(U.bounceUp * 0.6, dy / l * U.bounceOut)
   r.grounded = false; r.climbing = null
-  if (r.rope) { r.rope = null; r.events.push({ t: 'unwire', auto: true }) }
   u.hitCd = 0.45
-  if (!dmg) {
-    if (u.kind === 'hunter' && u.cool <= 0) { u.cool = U.huntCool; u.hunt = 'back'; hurt(R, r, 'hunter', u.x, u.z); return }   // 遅いと追跡機に負ける
-    ev(R, { t: 'boing', id: u.id, x: u.x, y: u.y, z: u.z, v, shield: shielded || u.kind === 'big' }); return
-  }
-  if (u.kind === 'hunter') { u.cool = U.huntCool; u.hunt = 'back' }
-  u.hp -= dmg; u.flash = 1; u.wob = 1
-  R.stats.rams++; if (hooked) R.stats.hooks++
-  R.stats.bestRam = Math.max(R.stats.bestRam, v)
-  R.groundT = 0
-  const kill = u.hp <= 0
-  const at = { x: u.x, y: u.y, z: u.z }
-  const pts = score(R, PTS.hit * dmg + (weak ? PTS.weak : 0) + (counter ? PTS.counter : 0), 'hit', at, true)
-  if (counter) R.stats.counters = (R.stats.counters || 0) + 1
-  if (weak) R.stats.weak = (R.stats.weak || 0) + 1
-  ev(R, { t: 'ram', weak: weak ? (above ? 'above' : 'behind') : null, counter, id: u.id, kind: u.kind, x: u.x, y: u.y, z: u.z, cx: (cx + u.x + dx / l * u.r) / 2, cy: (cy + u.y + dy / l * u.hh) / 2, cz: (cz + u.z + dz / l * u.r) / 2, v, dmg, kill, hooked, chain: R.chain, mult: R.mult, pts })
-  if (kill) downUfo(R, u, r.vx * 0.3, r.vz * 0.3)
+  if (u.kind === 'hunter' && u.cool <= 0) { u.cool = U.huntCool; u.hunt = 'back'; hurt(R, r, 'hunter', u.x, u.z); return }
+  ev(R, { t: 'boing', id: u.id, x: u.x, y: u.y, z: u.z, v: Math.hypot(r.vx, r.vy, r.vz) })
 }
 
 function downUfo(R, u, pvx = 0, pvz = 0, by = 'ram') {
@@ -459,7 +470,7 @@ function ufoAttack(R, u, r, dt) {
 }
 
 function hurt(R, r, src, x, z, knock = true) {
-  if (R.inv > 0 || R.taken || R.over || r.wreck > 0) return false
+  if (R.inv > 0 || R.dash || R.taken || R.over || r.wreck > 0) return false
   R.hp--; R.inv = U.inv; R.stats.hurt++; R.waveHurt++; R.stats.hurtBy[src] = (R.stats.hurtBy[src] || 0) + 1
   breakChain(R, 'hurt')
   if (knock) {
@@ -704,4 +715,4 @@ export function summary(R) {
   const S = R.stats
   return { ...S, end: R.end, wave: Math.min(R.wave + 1, WAVES.length + 1), hp: R.hp, t: R.t, mult: R.mult, chain: R.chain }
 }
-export const RANKS = [17000, 12000, 7000, 3000]   // S・A・B・C（それ未満は D）。tools/sim.mjs で決める
+export const RANKS = [45000, 35000, 22000, 8000]   // S・A・B・C（それ未満は D）。tools/sim.mjs で決める

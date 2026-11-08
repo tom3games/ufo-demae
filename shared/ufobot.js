@@ -1,11 +1,11 @@
 // CPU（釣り合いの検証とタイトルのデモ用）
 //   skilled: 予告の輪・線から出る、追尾弾は横の建物へワイヤーでふり切る、UFO を引っかけて体当たり、ドローンには飛んだまま当たる
 //   clumsy:  同じ考えだが、反応が0.4秒遅れ、ワイヤーを3回に1回掛け損ね、予告を半分見落とす
-//   hooker:  予告はよけるが、UFO にワイヤーを掛けるだけ（シールドを見ない・ビルで振らない）。2026-11-09「繋ぐだけで簡単すぎた」の確認用
+//   masher:  突撃できる時はすぐ突撃する（速さや開いた所を待たない）。v3 の確認用
 //   runner:  ワイヤーを使わず地面を走るだけ（遅い人。追跡機に捕まるはず）
 //   idle:    何もしない（いちばん悪い結果になるはず）
 import { findAnchor, blocked, RUN } from './runner.js?v=1'
-import { hookable } from './ufo.js?v=1'
+import { lockTarget } from './ufo.js?v=1'
 
 export function createUfoBot(kind, seed = 1) { let q = (seed * 9301 + 49297) % 233280; return { kind, rnd: () => ((q = (q * 9301 + 49297) % 233280) / 233280), lag: [], wT: 0, prevW: false, seen: new Set(), skip: new Set(), stuck: 0, lx: 0, lz: 0, jT: 0 } }
 
@@ -50,49 +50,44 @@ function think(b, r, R, world, dt) {
       flee = flee || { x: Math.sin(my + side * Math.PI / 2), z: Math.cos(my + side * Math.PI / 2) }
     }
   }
-  // 3) 狙う UFO: 近くの追跡機 → シールドが開いている → 近い・弱っている・母艦の芯
+  // 3) 狙う UFO（向かう先）と、今すぐ突撃できる UFO
   const sp = Math.hypot(r.vx, r.vy, r.vz)
   let tgt = null, ts = -1e9
   for (const u of R.ufos) {
     if (u.state !== 'fly' || (R.boss && R.boss.state === 'arrive')) continue
     const d = Math.hypot(u.x - r.x, u.y - r.y, u.z - r.z)
-    const s2 = -d * 0.03 + (u.hp <= 1 ? 0.4 : 0) + (u.kind === 'core' ? 1 : 0) + (b.kind === 'skilled' || b.kind === 'clumsy' ? (u.open > 0 && u.kind !== 'hunter' ? 0.8 : 0) + (u.kind === 'hunter' && d < 30 ? 1.2 : 0) : 0)
+    const s2 = -d * 0.03 + (u.kind === 'core' ? 1 : 0) + (u.kind === 'hunter' && d < 30 ? 0.8 : 0)
     if (s2 > ts) { ts = s2; tgt = u }
   }
   if (tgt) goal = { x: tgt.x, z: tgt.z }
   const dir = flee || (goal ? (() => { const dx = goal.x - r.x, dz = goal.z - r.z, l = Math.hypot(dx, dz); return l > 1.5 ? { x: dx / l, z: dz / l } : null })() : null)
   if (dir) { inp.moveDir = dir; inp.throttle = 1 }
-  // ワイヤー
-  let wire = false, at = null
-  if (b.kind === 'runner') { /* ワイヤーを使わない */ }
-  else if (r.rope) {
-    if (r.rope.ufo == null) {
-      // ビルの振り子: 狙いへ向かって飛んでいる時に外す（そのまま当たりに行く）。長すぎたら外す
-      const d = tgt ? Math.hypot(tgt.x - r.x, tgt.y - r.y, tgt.z - r.z) : 1e9
-      const aim = tgt ? ((tgt.x - r.x) * r.vx + (tgt.y - r.y) * r.vy + (tgt.z - r.z) * r.vz) / ((d || 1) * (sp || 1)) : 0
-      if (r.rope.t > 1.8 || (r.vy < -2 && r.rope.t > 0.7) || (aim > 0.85 && d < 22 && sp > 16 && r.rope.t > 0.35)) wire = true
+  if (b.kind === 'runner') return inp
+  // 突撃: 上手い人は速い時・開いた所・向かってくる追跡機を待つ。ほかは使えたらすぐ
+  if (!R.dash && R.dashReady && !(r.stun > 0)) {
+    const lk = lockTarget(R, r, Math.atan2(r.vx, r.vz))
+    if (lk) {
+      const wait = b.kind === 'skilled' && sp < 18 && !(lk.open > 0) && !(lk.kind === 'hunter') && r.rope && r.rope.t < 1.0
+      if (!wait && !(clumsy && b.rnd() < 0.02)) { inp.dash = lk.id; b.wT = 0; return inp }
     }
-  } else if (b.wT > (clumsy ? 0.8 : 0.45) && !(r.stun > 0)) {
-    const d = tgt ? Math.hypot(tgt.x - r.x, tgt.y - (r.y + 1.2), tgt.z - r.z) : 1e9
-    const see = tgt && d < RUN.wireRange - 3 && !blocked(world, r.x, r.y + 1.5, r.z, tgt.x, tgt.y, tgt.z)
-    if (wantWire) {
-      const a = findAnchor(world, r, wantWire.yaw); if (a) { wire = true; at = a }
-    } else if (b.kind === 'hooker') {
-      if (see && !flee) { wire = true; at = { ufo: tgt.id, x: tgt.x, y: tgt.y, z: tgt.z } }
-    } else if (!flee && tgt) {
-      // 上手い人: 掛けていいのはシールドが開いている時か、速く飛んで近くまで来た時だけ（引き寄せは弱いので勢いが要る）
-      if (see && hookable(R, tgt, r) && (((sp >= 15 || (tgt.kind === 'hunter' && d < 16)) && d < 18) || ((tgt.kind === 'pod' || tgt.kind === 'core') && d < 34))) { wire = true; at = { ufo: tgt.id, x: tgt.x, y: tgt.y, z: tgt.z } }
-      else if (r.grounded || r.vy < -1 || sp < 12) {
-        // ビルで振って勢いを作る: 狙いの向き（近ければ少し横へ回り込む）のビルに掛ける
-        const yaw = Math.atan2(tgt.x - r.x, tgt.z - r.z) + (d < 25 ? (b.rnd() - 0.5) * 1.2 : 0)
-        const a = findAnchor(world, r, yaw); if (a) { wire = true; at = a }
-      }
+  }
+  // ワイヤー（ビルだけ）: 振って速さを作り、狙いへ近づく
+  let wire = false, at = null
+  if (r.rope) {
+    if (r.rope.t > 1.7 || (r.vy < -2 && r.rope.t > 0.7)) wire = true
+  } else if (b.wT > (clumsy ? 0.8 : 0.45) && !(r.stun > 0) && !R.dash) {
+    if (wantWire) { const a = findAnchor(world, r, wantWire.yaw); if (a) { wire = true; at = a } }
+    else if (tgt && (r.grounded || r.vy < -1 || sp < 12)) {
+      const d = Math.hypot(tgt.x - r.x, tgt.z - r.z)
+      const yaw = Math.atan2(tgt.x - r.x, tgt.z - r.z) + (d < 20 ? (b.rnd() - 0.5) * 1.6 : 0)
+      const a = findAnchor(world, r, yaw); if (a) { wire = true; at = a }
     }
     if (wire && clumsy && b.rnd() < 0.33) { wire = false; b.wT = 0 }
   }
   if (wire) b.wT = 0
   inp.wire = wire && !b.prevW; b.prevW = wire
   if (inp.wire && at) inp.wireAt = at
+  void blocked; void RUN
   // 詰まったら跳ぶ
   b.stuck = Math.hypot(r.x - b.lx, r.z - b.lz) < 0.05 && !r.climbing && inp.throttle ? b.stuck + dt : 0
   b.lx = r.x; b.lz = r.z

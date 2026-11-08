@@ -166,3 +166,8 @@ html[lang=en] .logo span{font-size:min(12vw,58px);letter-spacing:.04em}
 /* UFO の上の体力: シールドが開いた時（赤紫に光る）・追跡機（橙） */
 .tag.open .tg-hp b{background:#fff;box-shadow:0 0 0 1.5px var(--mag),0 0 10px rgba(255,58,160,.95)}
 .tag.hunter .tg-hp b{background:#ff7a2a;box-shadow:0 0 0 1.5px rgba(10,6,10,.85),0 0 8px rgba(255,110,40,.8)}
+.o-speed{display:block;font-family:var(--mono);font-size:12px;color:var(--ink2);margin-top:2px}
+.o-speed.ok{color:var(--cyan);text-shadow:0 0 8px rgba(111,246,255,.6)}
+.tbtn .dash-l{position:absolute;bottom:14px;font-family:var(--head);font-weight:900;font-size:13px;letter-spacing:.1em}
+.tbtn[data-k=wire].aim-ufo svg{transform:scale(1.1)}
+.near b{white-space:nowrap;font-size:min(8.5vw,32px)}
