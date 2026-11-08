@@ -28,31 +28,34 @@ export const U = {
   between: 3.5,           // 波と波のあいだ
   open: 2.6,              // 撃った直後にシールドが開いている秒数
   // v3 ロックオン突撃
-  dashRange: 42, dashMinV: 8, dashV: 30, dashMax: 2.2,   // 届く距離・使える速さ・突撃の速さ（発動時の速さ+6 と比べて大きい方）・打ち切り秒
+  dashRange: 25, dashMinV: 8, dashV: 30, dashMax: 2.2,   // 届く距離・使える速さ・突撃の速さ（発動時の速さ+6 と比べて大きい方）・打ち切り秒
   dashBounce: 12, dashShield: 0.5, dashOpen: 2,          // 当てた後に上へ跳ねる速さ・シールドの時の倍率・開いた所の倍率
   // 2026-11-09 本人「UFOも追いかけてくるように」: 追跡機（ハンター）
   huntV: 14, lungeV: 21, lungeR: 9, slowV: 10, huntHitR: 2.6, huntCool: 2.8,
+  // v4（本人「もっとワイヤーの移動を楽しみたい。逃げたり、地形を活かしたり」）
+  huntChase: 11, huntRest: 4, shakeD: 24, tailD: 16,   // 追跡は11秒で息切れ（離れていたら振り切った）・16m 以内は真後ろを追って建物をよけない
+  diveV: -10, diveK: 1.4,                               // 落ちながら（下向き10m/s 以上）の突撃は1.4倍
   bossSec: 120            // 母艦の主砲が溜まりきるまで
 }
 // 倍率: 連鎖の数 → 倍率
 export const MULT = [[15, 4], [10, 3], [6, 2], [3, 1.5], [0, 1]]
 export const multOf = n => MULT.find(([k]) => n >= k)[1]
 // 点（倍率を掛ける前）
-export const PTS = { hunter: 300, counter: 150, open: 60, hit: 20, saucer: 150, big: 400, scout: 250, pod: 300, core: 1500, drone: 50, near: 40, bait: 200, wall: 60, waveFast: 600, waveSecPt: 8, perfect: 300, clear: 2000, hpLeft: 250 }
+export const PTS = { crash: 400, shaken: 120, cover: 60, dive: 80, hunter: 300, counter: 150, open: 60, hit: 20, saucer: 150, big: 400, scout: 250, pod: 300, core: 1500, drone: 50, near: 40, bait: 200, wall: 60, waveFast: 600, waveSecPt: 8, perfect: 300, clear: 2000, hpLeft: 250 }
 
 // 波の中身。毎回どちらかの組み合わせ（v）を選ぶ。kind: saucer（偵察円盤 3発）/ big（砲艦 7発・レーザーと追尾弾）/ scout（小型 1発・速く逃げてドローンを落とす）
 // atk: その波で使う攻撃。maxM: 同時に飛ぶ追尾弾の上限
 export const WAVES = [
-  { v: [{ ufos: ['saucer', 'saucer', 'saucer'], extra: ['saucer', 'saucer'] }, { ufos: ['saucer', 'saucer', 'scout'], extra: ['saucer', 'scout', 'saucer'] }], atk: ['beam'], first: 6, cd: [5.5, 8], maxAtk: 1, maxM: 0, droneV: 0 },
-  { v: [{ ufos: ['saucer', 'saucer', 'saucer', 'hunter'], extra: ['saucer', 'saucer', 'scout'] }, { ufos: ['saucer', 'scout', 'scout', 'saucer', 'hunter'], extra: ['saucer', 'saucer'] }], atk: ['beam', 'drone'], first: 4, cd: [5, 7.5], maxAtk: 2, maxM: 0, droneV: 9.5 },
+  { v: [{ ufos: ['saucer', 'saucer', 'saucer'], extra: ['saucer', 'hunter'] }, { ufos: ['saucer', 'saucer', 'scout'], extra: ['saucer', 'hunter', 'saucer'] }], atk: ['beam'], first: 6, cd: [5.5, 8], maxAtk: 1, maxM: 0, droneV: 0 },
+  { v: [{ ufos: ['saucer', 'saucer', 'saucer', 'hunter', 'hunter'], extra: ['saucer', 'saucer', 'scout'] }, { ufos: ['saucer', 'scout', 'scout', 'saucer', 'hunter'], extra: ['saucer', 'hunter', 'saucer'] }], atk: ['beam', 'drone'], first: 4, cd: [5, 7.5], maxAtk: 2, maxM: 0, droneV: 9.5 },
   { v: [{ ufos: ['saucer', 'saucer', 'saucer', 'big', 'hunter'], extra: ['saucer', 'saucer', 'scout'] }, { ufos: ['big', 'scout', 'scout', 'saucer', 'saucer'], extra: ['hunter', 'hunter', 'saucer'] }], atk: ['beam', 'drone', 'laser', 'missile'], first: 4, cd: [4.6, 7], maxAtk: 2, maxM: 1, droneV: 10, mV: 14.5, mTurn: 1.45 },
   { v: [{ ufos: ['saucer', 'saucer', 'saucer', 'saucer', 'big', 'hunter'], extra: ['saucer', 'big', 'saucer'] }, { ufos: ['big', 'big', 'saucer', 'saucer', 'hunter'], extra: ['scout', 'hunter', 'saucer', 'saucer'] }], atk: ['beam', 'drone', 'laser', 'missile'], first: 3, cd: [4.2, 6.5], maxAtk: 3, maxM: 2, droneV: 10.5, mV: 15.5, mTurn: 1.55 }
 ]
 export const BOSS = { hunterEvery: 22, maxHunters: 2, y: 36, rimR: 15, pods: 3, podHp: 3, coreHp: 7, coreY: 22, droneV: 11, mV: 16, mTurn: 1.6, maxM: 2, maxAtk: 3, cd: [3.6, 5.6] }
 const KIND = {
-  saucer: { hp: 1, r: 3.3, hh: 1.3, v: 7, alt: [20, 34] },
-  big: { hp: 4, r: 5.2, hh: 1.9, v: 5, alt: [22, 32] },
-  scout: { hp: 1, r: 1.9, hh: 0.9, v: 12, alt: [16, 28] },
+  saucer: { hp: 1, r: 3.3, hh: 1.3, v: 7, alt: [12, 22] },
+  big: { hp: 4, r: 5.2, hh: 1.9, v: 5, alt: [16, 26] },
+  scout: { hp: 1, r: 1.9, hh: 0.9, v: 12, alt: [10, 18] },
   hunter: { hp: 1.5, r: 2.3, hh: 1.0, v: 14, alt: [12, 20] },
   pod: { hp: BOSS.podHp, r: 2.8, hh: 1.6, v: 0 },
   core: { hp: BOSS.coreHp, r: 4.4, hh: 2.2, v: 3 }
@@ -250,10 +253,10 @@ export function startDash(R, r, id) {
   const u = R.ufos.find(q => q.id === id)
   if (!canDash(R, r, u)) return false
   const v0 = Math.hypot(r.vx, r.vy, r.vz)
-  R.dash = { id, v0, t: 0, V: Math.max(U.dashV, v0 + 6) }
+  R.dash = { id, v0, t: 0, V: Math.max(U.dashV, v0 + 6), dive: r.vy < U.diveV }
   R.dashReady = false
   if (r.rope) { r.rope = null; r.events.push({ t: 'unwire', auto: true }) }
-  ev(R, { t: 'dash', id, v0, x: r.x, y: r.y, z: r.z, open: u.open > 0 && u.kind !== 'pod' && u.kind !== 'hunter' })
+  ev(R, { t: 'dash', dive: R.dash.dive, id, v0, x: r.x, y: r.y, z: r.z, open: u.open > 0 && u.kind !== 'pod' && u.kind !== 'hunter' })
   return true
 }
 function stepDash(R, r, dt) {
@@ -271,7 +274,8 @@ function dashHit(R, u, r) {
   const eff = D.v0 + (counter ? Math.hypot(u.vx, u.vy, u.vz) : 0)
   const open = u.open > 0 && u.kind !== 'pod' && u.kind !== 'hunter'
   const crack = !open && u.kind !== 'pod' && u.kind !== 'hunter'
-  let dmg = Math.max(1, eff / 10) * (open ? U.dashOpen : crack ? U.dashShield : 1)
+  let dmg = Math.max(1, eff / 10) * (open ? U.dashOpen : crack ? U.dashShield : 1) * (D.dive ? U.diveK : 1)
+  if (D.dive) R.stats.dives = (R.stats.dives || 0) + 1
   dmg = Math.round(dmg * 10) / 10
   // 跳ね返る: 少し上と後ろへ（次のビルに掛けて次の突撃へ）
   const l = Math.hypot(r.vx, r.vz) || 1
@@ -284,8 +288,8 @@ function dashHit(R, u, r) {
   const kill = u.hp <= 0.01
   // 速いほど点も連鎖も伸びる（20m/s 以上は連鎖+2）
   if (D.v0 >= 20) { R.chain++; R.chainT = 0 }
-  const pts = score(R, PTS.hit * Math.ceil(dmg) + Math.round(D.v0 * 3) + (open ? PTS.open : 0) + (counter ? PTS.counter : 0), 'hit', { x: u.x, y: u.y, z: u.z }, true)
-  ev(R, { t: 'ram', id: u.id, kind: u.kind, x: u.x, y: u.y, z: u.z, cx: (r.x + u.x) / 2, cy: (r.y + 1 + u.y) / 2, cz: (r.z + u.z) / 2, v: D.v0, dmg, kill, open, crack, counter, chain: R.chain, mult: R.mult, pts })
+  const pts = score(R, PTS.hit * Math.ceil(dmg) + Math.round(D.v0 * 3) + (open ? PTS.open : 0) + (counter ? PTS.counter : 0) + (D.dive ? PTS.dive : 0), 'hit', { x: u.x, y: u.y, z: u.z }, true)
+  ev(R, { t: 'ram', dive: D.dive, id: u.id, kind: u.kind, x: u.x, y: u.y, z: u.z, cx: (r.x + u.x) / 2, cy: (r.y + 1 + u.y) / 2, cz: (r.z + u.z) / 2, v: D.v0, dmg, kill, open, crack, counter, chain: R.chain, mult: R.mult, pts })
   if (kill) downUfo(R, u, -r.vx * 0.5, -r.vz * 0.5)
 }
 // 画面と bot の狙い: 線が当たる UFO（球で見る。少し大きめに当てる）
@@ -350,7 +354,7 @@ function stepUfo(R, u, r, dt) {
     u.vx += -ddz / l * Math.sin(u.t * 0.9 + u.id) * K.v * 0.6 * dt; u.vz += ddx / l * Math.sin(u.t * 0.9 + u.id) * K.v * 0.6 * dt
     // 高さ: 決めた高さ。下の建物より 10m 上。降りてくる時は速く。引っかけられている間は少し下がる
     const floor = topAt(R.world, u.x, u.z)
-    const ty = Math.max(u.alt, floor + 11) - (hooked ? 6 : 0) + Math.sin(u.t * 1.3 + u.id) * 0.8
+    const ty = Math.max(u.alt, floor + 7) - (hooked ? 6 : 0) + Math.sin(u.t * 1.3 + u.id) * 0.8
     u.vy += ((ty - u.y) * (u.y > ty + 8 ? 1.4 : 0.9) - u.vy) * Math.min(1, dt * 2)
     u.x += u.vx * dt; u.y += u.vy * dt; u.z += u.vz * dt
   }
@@ -366,25 +370,42 @@ function stepHunter(R, u, r, dt) {
   const pv = Math.hypot(r.vx, r.vy, r.vz)
   let tx = r.x, ty = r.y + 1.5, tz = r.z, sp = U.huntV
   const dx0 = r.x - u.x, dz0 = r.z - u.z, dh = Math.hypot(dx0, dz0) || 1
+  const d3 = Math.hypot(r.x - u.x, r.y + 1 - u.y, r.z - u.z)
+  let tail = false
   if (u.cool > 0) { tx = u.x - dx0 / dh * 10; tz = u.z - dz0 / dh * 10; ty = r.y + 14; sp = 10; u.hunt = 'back' }
   else {
+    u.chaseT = (u.chaseT || 0) + dt; u.minD = Math.min(u.minD == null ? 1e9 : u.minD, d3)
+    // 振り切られた: 一度は近くまで迫ったのに、長く追って離されている・大きく離された
+    if (u.minD < 20 && u.chaseT > 2 && ((u.chaseT > U.huntChase && d3 > U.shakeD) || d3 > 45)) {
+      u.minD = 1e9
+      u.cool = U.huntRest; u.hunt = 'back'; u.chaseT = 0
+      if (!R.taken) { R.stats.shaken = (R.stats.shaken || 0) + 1; const pts = score(R, PTS.shaken, 'shaken', { x: r.x, y: r.y + 2, z: r.z }, true); ev(R, { t: 'shaken', id: u.id, x: u.x, y: u.y, z: u.z, pts }) }
+    } else if (u.chaseT > U.huntChase + 6) { u.cool = 1.5; u.chaseT = 0; u.minD = 1e9; u.hunt = 'back' }
     if (dh > 14) { tx += -dz0 / dh * u.side * Math.min(18, dh * 0.4); tz += dx0 / dh * u.side * Math.min(18, dh * 0.4); ty = Math.max(r.y + 4, topAt(R.world, u.x, u.z) + 6) }   // 回り込む
-    const d3 = Math.hypot(r.x - u.x, r.y + 1 - u.y, r.z - u.z)
+    else if (d3 < U.tailD) { tail = true; tx = r.x - r.vx * 0.25; ty = r.y + 1.2 - r.vy * 0.25; tz = r.z - r.vz * 0.25 }   // 真後ろを追う（建物をよけない）
     if (u.hunt !== 'lunge' && d3 < U.lungeR && (pv < U.slowV || r.grounded)) { u.hunt = 'lunge'; u.lunge = 0; ev(R, { t: 'lunge', id: u.id, x: u.x, y: u.y, z: u.z }) }
-    if (u.hunt === 'lunge') { u.lunge += dt; sp = U.lungeV; if (u.lunge > 1.1) u.hunt = 'chase' }
-    else if (u.hunt !== 'chase') { u.hunt = 'chase'; ev(R, { t: 'hunt', id: u.id, x: u.x, y: u.y, z: u.z }) }
+    if (u.hunt === 'lunge') { u.lunge += dt; sp = U.lungeV; tail = true; if (u.lunge > 1.1) u.hunt = 'chase' }
+    else if (u.hunt !== 'chase') { u.hunt = 'chase'; u.chaseT = 0; ev(R, { t: 'hunt', id: u.id, x: u.x, y: u.y, z: u.z }) }
   }
   const dx = tx - u.x, dy = ty - u.y, dz = tz - u.z, l = Math.hypot(dx, dy, dz) || 1
-  const k = Math.min(1, dt * (u.hunt === 'lunge' ? 4 : 1.8))
-  u.vx += (dx / l * sp - u.vx) * k; u.vy += (dy / l * sp * 0.8 - u.vy) * k; u.vz += (dz / l * sp - u.vz) * k
+  const k = Math.min(1, dt * (u.hunt === 'lunge' ? 4 : tail ? 3 : 1.8))
+  u.vx += (dx / l * sp - u.vx) * k; u.vy += (dy / l * sp * (tail ? 1 : 0.8) - u.vy) * k; u.vz += (dz / l * sp - u.vz) * k
+  // 遠くを追う時は前の建物を上へよける。真後ろを追う時はよけない
+  if (!tail && insideSolid(R.world, u.x + u.vx * 0.6, u.y + u.vy * 0.6, u.z + u.vz * 0.6)) u.vy = Math.max(u.vy, 9)
   u.x += u.vx * dt; u.y += u.vy * dt; u.z += u.vz * dt
-  const fl = topAt(R.world, u.x, u.z) + 2.5; if (u.y < fl) { u.y = fl; u.vy = Math.max(0, u.vy) }
-  if (insideSolid(R.world, u.x, u.y, u.z)) { u.y += 6 * dt * 4; u.vy = Math.max(u.vy, 6) }
-  // 当たった: 自分が遅ければ自分が被弾。速ければ体当たり判定（ramCheck）が先に取る
+  const fl = topAt(R.world, u.x, u.z) + 2.5; if (u.y < fl && !tail) { u.y = fl; u.vy = Math.max(0, u.vy) }
+  if (insideSolid(R.world, u.x, u.y, u.z) || u.y < floorAt(R.world, u.x, u.z, u.y + 0.5).h + 0.6) {
+    if (tail && u.cool <= 0) {
+      // 建物（か地面）に激突して落ちる
+      R.stats.crashes = (R.stats.crashes || 0) + 1
+      const pts = score(R, PTS.crash, 'crash', { x: u.x, y: u.y, z: u.z }, true)
+      ev(R, { t: 'hunterCrash', id: u.id, x: u.x, y: u.y, z: u.z, pts })
+      downUfo(R, u, -u.vx * 0.2, -u.vz * 0.2, 'wall'); return
+    }
+    u.y += 6 * dt * 4; u.vy = Math.max(u.vy, 6)
+  }
   if (u.cool <= 0 && !R.taken && !R.dash && u.hitCd <= 0) {
-    const d = Math.hypot(r.x - u.x, r.y + 1 - u.y, r.z - u.z)
-    const rv = Math.hypot(r.vx - u.vx, r.vy - u.vy, r.vz - u.vz), mine = (r.vx * (u.x - r.x) + r.vy * (u.y - r.y - 1) + r.vz * (u.z - r.z)) / (d || 1)
-    if (d < U.huntHitR) { u.cool = U.huntCool; u.hunt = 'back'; hurt(R, r, 'hunter', u.x, u.z) }
+    if (d3 < U.huntHitR) { u.cool = U.huntCool; u.hunt = 'back'; u.chaseT = 0; hurt(R, r, 'hunter', u.x, u.z) }
   }
 }
 
@@ -518,7 +539,11 @@ function stepBeams(R, r, dt) {
       const px = r.x - b.ux, py = r.y + 0.9 - b.uy, pz = r.z - b.uz
       const s = clamp((px * ax + py * ay + pz * az) / L2, 0, 1)
       const ex = px - ax * s, ey = py - ay * s, ez = pz - az * s, rad = 1.2 + (b.r - 1.2) * s, d2 = ex * ex + ey * ey + ez * ez
-      if (s > 0.02 && d2 < rad * rad) { if (!b.hit && hurt(R, r, 'beam', b.x, b.z)) b.hit = true }
+      if (s > 0.02 && d2 < rad * rad) {
+        // ビルの陰（UFO から自分まで建物がある）なら光線は届かない
+        if (blocked(R.world, b.ux, b.uy - 0.5, b.uz, r.x, r.y + 1.2, r.z)) { if (!b.cover) { b.cover = true; R.stats.cover = (R.stats.cover || 0) + 1; const pts = score(R, PTS.cover, 'cover', { x: r.x, y: r.y + 2, z: r.z }, true); ev(R, { t: 'cover', x: r.x, y: r.y, z: r.z, pts }) } }
+        else if (!b.hit && hurt(R, r, 'beam', b.x, b.z)) b.hit = true
+      }
       else if (!b.near && !b.hit && s > 0.3 && d2 < (rad + 2.2) ** 2 && !r.grounded) { b.near = true; nearMiss(R, r, b.x, b.z, 'beam') }
     }
   }
@@ -541,7 +566,10 @@ function stepLasers(R, r, dt) {
         const ax = L.px - L.ux, ay = L.gy - L.uy, az = L.pz - L.uz, L2 = ax * ax + ay * ay + az * az
         const px = r.x - L.ux, py = r.y + 0.9 - L.uy, pz = r.z - L.uz, q = clamp((px * ax + py * ay + pz * az) / L2, 0, 1.05)
         const ex = px - ax * q, ey = py - ay * q, ez = pz - az * q
-        if (ex * ex + ey * ey + ez * ez < U.laserHit * U.laserHit) { if (hurt(R, r, 'laser', L.px, L.pz)) L.hit = true }
+        if (ex * ex + ey * ey + ez * ez < U.laserHit * U.laserHit) {
+          if (blocked(R.world, L.ux, L.uy - 0.5, L.uz, r.x, r.y + 1.2, r.z)) { if (!L.cover) { L.cover = true; R.stats.cover = (R.stats.cover || 0) + 1; const pts = score(R, PTS.cover, 'cover', { x: r.x, y: r.y + 2, z: r.z }, true); ev(R, { t: 'cover', x: r.x, y: r.y, z: r.z, pts }) } }
+          else if (hurt(R, r, 'laser', L.px, L.pz)) L.hit = true
+        }
         // すれすれ（線が近くを通り抜けた）
         else if (!L.near && ex * ex + ey * ey + ez * ez < 3.4 * 3.4 && s > 0.2) { L.near = true; nearMiss(R, r, L.px, L.pz, 'laser') }
       }

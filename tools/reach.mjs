@@ -33,7 +33,8 @@ export function sweep(world, x, y, z, range, step = 5) {
   return rows
 }
 if (process.argv[1] && process.argv[1].endsWith('reach.mjs')) {
-  const world = createWorld('city'); addTown(world, JOB.shop); buildPoles(world, JOB.shop)
+  const { addRuinMap } = await import('../shared/ruinmap.js?v=1')
+  const world = createWorld('city'); addTown(world, JOB.shop); addRuinMap(world); buildPoles(world, JOB.shop)
   const start = { x: JOB.shop.x - 9, z: JOB.shop.z }
   for (const range of [RUN.wireRange, 35, 20]) {
     const rows = sweep(world, start.x, 0, start.z, range)

@@ -175,13 +175,7 @@ export function buildRuin(scene, world, opt = {}) {
   scene.add(rub)
   // ---- 墜ちた UFO（3機）: 地面に半分めり込んだ円盤。当たり判定の箱を足す
   const wrecks = []
-  const wreckSpots = [{ x: 36, z: 842, a: 0.4 }]   // 開始地点の東の空き地（もとは店のあった所）
-  for (let tries = 0; wreckSpots.length < 3 && tries < 300; tries++) {
-    const a = rnd() * Math.PI * 2, d = 45 + rnd() * 60, x = ARENA.x + Math.sin(a) * d, z = ARENA.z + Math.cos(a) * d
-    let ok = world.groundAt(x, z, 3).h < 0.6
-    for (const c of world.nearby(x, z)) { if (c.kind === 'bound') continue; if (Math.abs(x - c.cx) < c.hw + 6 && Math.abs(z - c.cz) < c.hl + 6) { ok = false; break } }
-    if (ok && wreckSpots.every(w => Math.hypot(w.x - x, w.z - z) > 50)) wreckSpots.push({ x, z, a: rnd() * 6 })
-  }
+  const wreckSpots = world.ruinMap ? world.ruinMap.wrecks : []
   const wHull = new THREE.LatheGeometry([[0, -0.9], [1.2, -1.0], [2.6, -0.55], [3.3, -0.06], [3.36, 0.06], [2.7, 0.36], [1.6, 0.6], [0, 0.66]].map(([a, b]) => new THREE.Vector2(a * 1.25, b * 1.25)), 28)
   const wM = new THREE.MeshStandardMaterial({ color: 0x2a2b2e, metalness: 0.7, roughness: 0.6 })
   const wLight = new THREE.MeshBasicMaterial({ color: 0x6ff7ff })
@@ -201,9 +195,6 @@ export function buildRuin(scene, world, opt = {}) {
     const gy = world.groundAt(w.x, w.z, 3).h
     g.position.set(w.x, gy, w.z)
     scene.add(g)
-    // 当たり判定（走って突き抜けないように。ワイヤーも掛かる低い物）
-    const c = { cx: w.x, cz: w.z, yaw: 0, hw: 3.6, hl: 3.6, y0: gy, y1: gy + 2.4, kind: 'building', small: true, wreck: true }
-    world.colliders.push(c); world.colGrid.add(c, w.x - 5, w.z - 5, w.x + 5, w.z + 5)
     wrecks.push({ x: w.x, y: gy + 2, z: w.z, light: wLight })
   }
   world._anchorBoxes = null
@@ -235,6 +226,14 @@ export function buildRuin(scene, world, opt = {}) {
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3))
     scene.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9, side: THREE.DoubleSide })))
+  }
+  // 広場の鉄塔（shared/ruinmap.js の当たり判定と同じ所）: 4本の柱と横桟、てっぺんで折れて曲がる
+  for (const T of (world.ruinMap ? world.ruinMap.towers : [])) {
+    const H = T.h, w = 0.8
+    for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) obox(solid, T.x + sx * w, T.y + H / 2, T.z + sz * w, 0.09, H / 2, 0.09, T.tilt, 0, T.tilt * 0.5, 0x3a3532)
+    for (let y = 2.5; y < H; y += 3) { obox(solid, T.x, T.y + y, T.z + w, w, 0.06, 0.06, 0, 0, 0, 0x4a4440); obox(solid, T.x, T.y + y, T.z - w, w, 0.06, 0.06, 0, 0, 0, 0x4a4440); obox(solid, T.x + w, T.y + y, T.z, 0.06, 0.06, w, 0, 0, 0, 0x4a4440); obox(solid, T.x - w, T.y + y, T.z, 0.06, 0.06, w, 0, 0, 0, 0x4a4440); obox(solid, T.x, T.y + y + 1.4, T.z + w, 0.05, 1.7, 0.05, 0, 0, 0.9, 0x3a3532) }
+    obox(solid, T.x + 1.2, T.y + H + 0.8, T.z, 0.12, 2, 0.12, 0, 0, 1.1, 0x2b2622)
+    glowB.box(T.x, T.y + H - 0.4, T.z, 0.25, 0.25, 0.25, 0xff3a2a, 0)   // てっぺんの赤い航空灯（ワイヤーの目印）
   }
   const solidMesh = new THREE.Mesh(solid.geometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0.1 }))
   solidMesh.castShadow = true; solidMesh.userData.keepColor = true

@@ -213,6 +213,53 @@ await t('着地せずに突撃を続けると連鎖と倍率が上がり、着�
   }, AIR)
   expect(r.top.chain >= 4 && r.top.mult >= 2 && r.after.chain === 0 && r.after.mult === 1, r); return r
 })
+await t('ロックオンは 25m 前後まで（30m 先の UFO には突撃できない）', async () => {
+  const r = await p.evaluate(AIR => {
+    ufo.dbg.teleport(60, 0, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.dbg.clearUfos()
+    const u = ufo.R.ufos.find(q => q.state === 'fly'); u.frozen = false; ufo.dbg.placeUfo(u.id, 30, 6, 0)
+    new Function('V', AIR)(20); ufo.dbg.render(4); const far = ufo.dbg.lockId
+    ufo.dbg.placeUfo(u.id, 18, 6, 0); ufo.dbg.render(4); const near = ufo.dbg.lockId
+    return { far, near, id: u.id }
+  }, AIR)
+  expect(r.far !== r.id && r.near === r.id, r); return r
+})
+await t('落ちながらの突撃は急降下（1.4倍）', async () => {
+  const r = await p.evaluate(AIR => {
+    ufo.dbg.teleport(60, 0, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.dbg.clearUfos()
+    const u = ufo.R.ufos.find(q => q.state === 'fly'); u.frozen = false; ufo.dbg.placeUfo(u.id, 10, -2, 0); u.y = 6; u.hp = 99; u.open = 0; u.hitCd = 0
+    new Function('V', AIR)(10); ufo.me.y = 14; ufo.me.vy = -14; const n0 = ufo.log.length; ufo.dbg.dash(u.id); ufo.dbg.stepUntil("ufo.log.slice(" + n0 + ").some(e => e.t === 'ram')", 200)
+    const e = ufo.log.slice(n0).find(e => e.t === 'ram'); return { dive: e && e.dive, dmg: e && e.dmg, v: e && Math.round(e.v) }
+  }, AIR)
+  expect(r.dive && r.dmg > 0.5 * Math.max(1, r.v / 10) * 1.3, r); return r
+})
+await t('ビルの陰にいると焼却光線は届かない（盾）', async () => {
+  const r = await p.evaluate(() => {
+    const o = ufo.world.colliders.filter(c => c.kind === 'building' && !c.small && c.y1 > 30 && c.hl > 8 && Math.hypot(c.cx - 66, c.cz - 862) < 160).sort((a, b) => Math.hypot(a.cx - 66, a.cz - 862) - Math.hypot(b.cx - 66, b.cz - 862))[0]
+    ufo.dbg.clearUfos(); ufo.R.inv = 0; ufo.R.taken = null
+    const px = o.cx - o.hw - 1.5, pz = o.cz
+    ufo.dbg.teleport(px, ufo.world.groundAt(px, pz, 2).h, pz, Math.PI / 2)
+    const u = ufo.R.ufos.find(q => q.state === 'fly'); Object.assign(u, { frozen: true, x: o.cx + o.hw + 8, y: 20, z: o.cz, atkCd: 99, atk: 'beam' })
+    ufo.R.beams.push({ id: 991, ufo: u.id, x: px, z: pz, gy: ufo.me.y, r: 5, t: 0, phase: 'warn' })
+    const hp = ufo.R.hp, n0 = ufo.log.length
+    ufo.dbg.stepUntil("ufo.R.beams.length === 0", 300)
+    return { hp, after: ufo.R.hp, cover: ufo.log.slice(n0).some(e => e.t === 'cover') }
+  })
+  expect(r.cover && r.after === r.hp, r); return r
+})
+await t('真後ろを追ってくる追跡機は、細い鉄塔の向こうへ抜けると激突して落ちる', async () => {
+  const r = await p.evaluate(() => {
+    const T = ufo.world.ruinMap.towers[0]; ufo.dbg.clearUfos(); ufo.R.inv = 99
+    ufo.dbg.teleport(T.x + 3, 8, T.z, Math.PI / 2); ufo.me.grounded = false; ufo.me.vx = 2
+    const h = ufo.dbg.spawn('hunter', T.x - 7, 9, T.z, { hunt: 'chase', vx: 14 })
+    const n0 = ufo.log.length; for (let i = 0; i < 90; i++) { ufo.me.y = 8; ufo.me.vy = 0; ufo.dbg.step(1); if (ufo.log.slice(n0).some(e => e.t === 'hunterCrash')) break }
+    return { crash: ufo.log.slice(n0).some(e => e.t === 'hunterCrash'), state: h.state }
+  })
+  expect(r.crash, r); return r
+})
+await t('ワイヤーは明るい芯と光で、暗い背景でも見える', async () => {
+  const r = await p.evaluate(() => { let core = null, glow = null; ufo.scene.traverse(o => { if (o.isMesh && o.geometry.parameters && o.geometry.parameters.radiusTop === 0.045) { core = o.material.color.getHSL({}); glow = o.children[0] && o.children[0].material.opacity } }); return { l: core && core.l, glow } })
+  expect(r.l > 0.8 && r.glow > 0.2, r); return r
+})
 const FRESH = `ufo.start(11); ufo.dbg.pause(true); ufo.dbg.stepUntil("ufo.R.phase === 'wave' && ufo.R.ufos.length >= 2", 600);`
 await t('焼却光線: 足元の輪が先に出て、動かないと焼かれて電池が1本減る', async () => {
   const r = await p.evaluate(new Function(FRESH + 'return 0')).then(() => p.evaluate(() => {

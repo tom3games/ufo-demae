@@ -44,5 +44,8 @@ await shot('result', () => { ufo.start(21); ufo.dbg.pause(true); const R = ufo.R
 await shot('hunter', () => { ufo.start(4); ufo.dbg.pause(true); ufo.dbg.stepUntil("ufo.R.phase === 'wave'", 600); ufo.dbg.teleport(60, 0, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.R.inv = 99; ufo.dbg.clearUfos(); ufo.dbg.spawn('hunter', 60 + 14, 7, 866 + 6, { hunt: 'chase' }); ufo.dbg.spawn('hunter', 60 - 30, 8, 866, { hunt: 'chase', side: 1 }); ufo.dbg.step(20); ufo.dbg.render(10) })
 // 照準が水色（突撃できる）
 await shot('lock', () => { ufo.start(6); ufo.dbg.pause(true); ufo.dbg.stepUntil("ufo.R.phase === 'wave'", 600); ufo.dbg.teleport(60, 0, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.R.inv = 99; ufo.dbg.clearUfos(); const u = ufo.R.ufos[0]; u.frozen = false; ufo.dbg.placeUfo(u.id, 16, 8, 2); u.atkCd = 99; ufo.me.y = 6; ufo.me.grounded = false; ufo.me.vx = 18; ufo.R.dashReady = true; ufo.dbg.render(8) })
+// ワイヤーの見え方（空を背に・暗いビルを背に）
+await shot('rope-sky', () => { ufo.start(8); ufo.dbg.pause(true); ufo.dbg.stepUntil("ufo.R.phase === 'wave'", 600); ufo.dbg.teleport(60, 4, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.cam.pitch = -0.3; ufo.R.inv = 99; ufo.dbg.clearUfos(); const a = ufo.dbg.anchor(); ufo.me.grounded = false; ufo.me.rope = { x: a.x, y: a.y, z: a.z, len: Math.hypot(a.x - 60, a.y - 5, a.z - 866), t: 0.5 }; ufo.dbg.render(6) })
+await shot('rope-wall', () => { const T = ufo.world.ruinMap.towers[1]; ufo.dbg.teleport(T.x - 14, 6, T.z, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.cam.pitch = 0.2; ufo.me.grounded = false; ufo.me.rope = { x: T.x, y: T.y + T.h - 2, z: T.z, len: 20, t: 0.5 }; ufo.dbg.render(6) })
 console.log(errs.join('\n') || 'no errors')
 await b.close(); server.kill()

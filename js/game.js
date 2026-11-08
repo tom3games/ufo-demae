@@ -19,6 +19,7 @@ import { createUfoBot, ufoBotInput } from '../shared/ufobot.js?v=1'
 import { UfoView, MotherView, AttackView } from './ufo3d.js?v=1'
 import { drawReport } from './report.js?v=1'
 import { makeSky, buildRuin, PALETTE } from './ruin.js?v=1'
+import { addRuinMap } from '../shared/ruinmap.js?v=1'
 import { facadeTime } from './facade.js?v=1'
 
 const $ = id => document.getElementById(id)
@@ -35,14 +36,14 @@ const T = {
     start: '出撃', how: '作戦指示', lang: 'EN', more: 'ほかのゲーム', muteOn: '音 入', muteOff: '音 切', loading: '通信を確立中',
     howTitle: '作戦指示書', ok: '了解',
     howItems: [
-      'ビルにワイヤーを掛けて振る。速さ8以上で<b>突撃</b>できる（右下の大ボタン・UFOをタッチ）',
-      '突撃は<b>必ず当たる</b>。威力は突撃した時の速さ。振って速いほど一撃',
-      'シールドは<b>ひび</b>でダメージ半分。撃った直後の赤紫に光った所は<b>2倍</b>',
-      '<b>足元の輪・赤紫の線</b>から離れる。追跡機は正面から突撃で迎え撃て'
+      'ビルや鉄塔にワイヤーを掛けて振る。速さ8以上で<b>突撃</b>（右下の大ボタン・近くのUFOをタッチ）',
+      '突撃は<b>必ず当たる</b>。威力は速さ。落ちながらの<b>急降下</b>は1.4倍',
+      'シールドは<b>ひび</b>で半分。撃った直後の赤紫の所は<b>2倍</b>',
+      '<b>追跡機</b>はビルの隙間を抜けると激突する。光線は<b>ビルの陰</b>なら届かない'
     ],
     hintHook: '<small>管制</small>ビルに掛けて振れ。照準が水色になったら大ボタンで突撃', hintHookPc: '<small>管制</small>ビルをクリックして振れ（Eで前のビル）。照準が水色ならFかUFOをクリックで突撃',
     needSwing: 'ビルで振ってから', needSpeed: '速さが足りない', noLine: '建物の陰', dashL: '突撃', speedL: '速さ',
-    hintShield: '<small>管制</small>シールドだ。撃った直後に開く。速く当たれば破れる', hintHunt: '<small>管制</small>追跡機だ。止まるな。向き直って迎え撃て', hintZap: '<small>管制</small>掛けっぱなしにするな。切られるぞ',
+    hintShield: '<small>管制</small>シールドだ。撃った直後に開く。速く当たれば破れる', hintHunt: '<small>管制</small>追跡機だ。止まるな。ビルの隙間を抜けろ、ぶつけてやれ', hintZap: '<small>管制</small>掛けっぱなしにするな。切られるぞ',
     hintBeam: '<small>管制</small>足元の輪から離れろ。上から焼かれる', hintLock: '<small>管制</small>追尾弾だ。急に曲がるか、ビルの陰へ', hintLaser: '<small>管制</small>赤紫の線の上から横へ逃げろ', hintChain: '<small>管制</small>着地するな。当て続ければ倍率が上がる',
     keysPc: 'PC: WASD・矢印で移動　クリックでワイヤー（UFOなら引っかける）　E は前のUFOへ自動　Space ジャンプ　ドラッグで見回す',
     credit: '音: Kenney, rubberduck, artisticdude, bretbernhoft, aquinn, Effebit ほか（CC0・Public domain）。詳しくは CREDITS.md',
@@ -52,12 +53,12 @@ const T = {
     waveS: n => n === 1 ? '敵影、接近' : n === 4 ? '最終波' : '次の敵影', waveB: n => `第${n}波`,
     bossS: '上空に巨大な反応', bossB: '母艦', clearS: '母艦 撃墜', clearB: '作戦完了', burnS: '主砲', burnB: '発射',
     extra: '<small>管制</small>増援を確認。まだ来る',
-    radio: ['<small>管制</small>撃った直後を狙え。シールドが開いている', '<small>管制</small>速く振ってから突撃しろ。一撃で落ちる', '<small>管制</small>突撃の後はすぐ次のビルに掛けろ', '<small>管制</small>着地するな。連鎖が切れる', '<small>管制</small>追尾弾はビルに当てて消せ', '<small>管制</small>赤紫の線は横に逃げろ', '<small>管制</small>小型は逃げる。先に落とせ', '<small>管制</small>…こちら管制。まだ生きてるか', '<small>管制</small>北の高台は無事だ。持ちこたえろ', '<small>管制</small>ドローンには飛んだまま当たれ'],
+    radio: ['<small>管制</small>光線はビルの陰には届かない', '<small>管制</small>高い所から落ちながら突撃しろ。重いぞ', '<small>管制</small>撃った直後を狙え。シールドが開いている', '<small>管制</small>速く振ってから突撃しろ。一撃で落ちる', '<small>管制</small>突撃の後はすぐ次のビルに掛けろ', '<small>管制</small>着地するな。連鎖が切れる', '<small>管制</small>追尾弾はビルに当てて消せ', '<small>管制</small>赤紫の線は横に逃げろ', '<small>管制</small>小型は逃げる。先に落とせ', '<small>管制</small>…こちら管制。まだ生きてるか', '<small>管制</small>北の高台は無事だ。持ちこたえろ', '<small>管制</small>ドローンには飛んだまま当たれ'],
     ram: n => n >= 3 ? '会心' : n === 2 ? '直撃' : '命中', boing: '<small>管制</small>遅すぎる。もっと速く当てろ',
     down: { saucer: '撃墜', big: '砲艦 撃墜', scout: '小型 撃墜', pod: '砲台 破壊', core: '芯 破壊' },
     hurt: { beam: '焼かれた', laser: '切られた', drone: 'ドローンに被弾', missile: '追尾弾に被弾', hunter: '追跡機に衝突' },
     hunters: '<small>管制</small>母艦から追跡機が出た。挟まれるな',
-    crack: 'ひび', open: '撃ち抜いた x2', counter: '迎え撃ち', lunge: '突っ込んでくる',
+    crack: 'ひび', open: '撃ち抜いた x2', counter: '迎え撃ち', dive: '急降下', shaken: '振り切った', hunterCrash: '激突', cover: 'ビルが盾に', lunge: '突っ込んでくる',
     mBait: '誘導命中', mWall: 'ビルでふり切った', near: 'ギリギリ', multUp: m => `倍率 x${m}`, droneKill: 'ドローン破壊', chainEnd: n => `${n}連鎖`,
     scouts: '<small>管制</small>小型がいる。逃げ足が速い', big: '<small>管制</small>砲艦だ。追尾弾に気をつけろ',
     boss: '<small>管制</small>母艦だ。縁の砲台から落とせ', coreOpen: '<small>管制</small>芯が出た。そこが弱点だ', bossDown: '<small>管制</small>母艦が落ちる…！', mainCannon: '<small>管制</small>主砲が来る…街が…',
@@ -82,14 +83,14 @@ const T = {
     start: 'Deploy', how: 'Briefing', lang: 'JP', more: 'More games', muteOn: 'Sound on', muteOff: 'Muted', loading: 'Establishing link',
     howTitle: 'BRIEFING', ok: 'Copy',
     howItems: [
-      'Swing from buildings. At 8 m/s or faster you can <b>dash</b> (big button, F, or tap a UFO)',
-      'The dash <b>always hits</b>. Its power is your speed when you launch it',
+      'Swing from buildings and towers. At 8 m/s or faster you can <b>dash</b> (big button, or tap a nearby UFO)',
+      'The dash <b>always hits</b>. Power is your speed. Dashing while falling is a <b>dive</b> (x1.4)',
       'Shields <b>crack</b> for half damage. Hit the magenta glow right after it fires for <b>x2</b>',
-      'Leave <b>rings and magenta lines</b>. Meet hunters head-on with a dash'
+      '<b>Hunters</b> crash into walls if you slip through gaps. Beams cannot reach you <b>behind buildings</b>'
     ],
     hintHook: '<small>HQ</small>Swing from buildings. When the reticle turns cyan, dash with the big button', hintHookPc: '<small>HQ</small>Click buildings to swing (E for the one ahead). Cyan reticle: F or click the UFO to dash',
     needSwing: 'Swing first', needSpeed: 'Too slow', noLine: 'Blocked', dashL: 'DASH', speedL: 'Speed',
-    hintShield: '<small>HQ</small>Shielded. It opens after firing. A fast hit breaks through', hintHunt: '<small>HQ</small>Hunter. Keep moving, or turn and meet it', hintZap: '<small>HQ</small>Do not hang on. It will cut your wire',
+    hintShield: '<small>HQ</small>Shielded. It opens after firing. A fast hit breaks through', hintHunt: '<small>HQ</small>Hunter. Keep moving. Thread the gaps and make it crash', hintZap: '<small>HQ</small>Do not hang on. It will cut your wire',
     hintBeam: '<small>HQ</small>Out of the ring. It burns from above', hintLock: '<small>HQ</small>Homing shot. Turn hard or break line of sight', hintLaser: '<small>HQ</small>Get off the magenta line, sideways', hintChain: '<small>HQ</small>Do not land. Keep hitting to raise the multiplier',
     keysPc: 'PC: WASD / arrows move · click to wire (click a UFO to hook it) · E hooks the UFO ahead · Space jump · drag to look',
     credit: 'Sounds: Kenney, rubberduck, artisticdude, bretbernhoft, aquinn, Effebit and others (CC0 / public domain). See CREDITS.md',
@@ -99,12 +100,12 @@ const T = {
     waveS: n => n === 1 ? 'Contacts inbound' : n === 4 ? 'Final wave' : 'More contacts', waveB: n => `Wave ${n}`,
     bossS: 'Massive signal overhead', bossB: 'Mothership', clearS: 'Mothership down', clearB: 'Mission complete', burnS: 'Main cannon', burnB: 'FIRING',
     extra: '<small>HQ</small>Reinforcements spotted',
-    radio: ['<small>HQ</small>Hit them right after they fire. The shield is open', '<small>HQ</small>Swing fast, then dash. One hit drops them', '<small>HQ</small>After a dash, wire the next building', '<small>HQ</small>Do not land. You will lose the chain', '<small>HQ</small>Lure homing shots into buildings', '<small>HQ</small>Magenta lines: move sideways', '<small>HQ</small>Small ones run. Take them first', '<small>HQ</small>...HQ here. Still alive?', '<small>HQ</small>The north hill is holding. Hang on', '<small>HQ</small>Hit drones while airborne'],
+    radio: ['<small>HQ</small>Beams cannot reach you behind buildings', '<small>HQ</small>Dash while falling from high up. It hits harder', '<small>HQ</small>Hit them right after they fire. The shield is open', '<small>HQ</small>Swing fast, then dash. One hit drops them', '<small>HQ</small>After a dash, wire the next building', '<small>HQ</small>Do not land. You will lose the chain', '<small>HQ</small>Lure homing shots into buildings', '<small>HQ</small>Magenta lines: move sideways', '<small>HQ</small>Small ones run. Take them first', '<small>HQ</small>...HQ here. Still alive?', '<small>HQ</small>The north hill is holding. Hang on', '<small>HQ</small>Hit drones while airborne'],
     ram: n => n >= 3 ? 'CRITICAL' : n === 2 ? 'DIRECT' : 'HIT', boing: '<small>HQ</small>Too slow. Hit it harder',
     down: { saucer: 'DOWN', big: 'GUNSHIP DOWN', scout: 'SCOUT DOWN', pod: 'TURRET DOWN', core: 'CORE DOWN' },
     hurt: { beam: 'Burned', laser: 'Cut', drone: 'Drone hit', missile: 'Homing hit', hunter: 'Rammed by hunter' },
     hunters: '<small>HQ</small>Hunters launched from the mothership. Do not get pinched',
-    crack: 'CRACK', open: 'PIERCED x2', counter: 'HEAD-ON', lunge: 'INCOMING',
+    crack: 'CRACK', open: 'PIERCED x2', counter: 'HEAD-ON', dive: 'DIVE', shaken: 'SHOOK IT', hunterCrash: 'CRASHED', cover: 'COVER', lunge: 'INCOMING',
     mBait: 'LURED HIT', mWall: 'SHOOK IT OFF', near: 'CLOSE CALL', multUp: m => `x${m} MULTIPLIER`, droneKill: 'DRONE DOWN', chainEnd: n => `${n} chain`,
     scouts: '<small>HQ</small>Scouts. They are quick', big: '<small>HQ</small>Gunship. Watch for homing shots',
     boss: '<small>HQ</small>Mothership. Take out the rim turrets', coreOpen: '<small>HQ</small>The core is exposed. Hit it', bossDown: '<small>HQ</small>It is going down...!', mainCannon: '<small>HQ</small>Main cannon... the city...',
@@ -181,6 +182,7 @@ const built = buildScene(scene, world)
 for (const g of built.gates) g.grp.visible = false
 const fx = new FX(scene, world)
 const town = addTown(world, BASE)
+addRuinMap(world)
 const poles3d = buildPoles3d(scene, buildPoles(world, BASE))
 const houses3d = buildHouses3d(scene, town)
 const carsDraw = trafficPool(scene, LOW)
@@ -204,8 +206,11 @@ function parkCars(st, seed) {
 }
 parkCars(street, 1)
 const ufoView = new UfoView(scene), motherView = new MotherView(scene), atkView = new AttackView(scene)
-const ropeMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a }), ropeUfoMat = new THREE.MeshBasicMaterial({ color: 0x7ff6ff })
-const ropeMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1, 5).rotateX(Math.PI / 2).translate(0, 0, 0.5), ropeMat)
+// ワイヤー: 明るい水色の芯＋外側の淡い光（2026-11-09 本人「ワイヤーが黒だと見にくい」。暗い廃都でも空でも見える）
+const ropeMat = new THREE.MeshBasicMaterial({ color: 0xd8fbff, fog: false }), ropeUfoMat = ropeMat
+const ropeMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 1, 6).rotateX(Math.PI / 2).translate(0, 0, 0.5), ropeMat)
+const ropeGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1, 8).rotateX(Math.PI / 2).translate(0, 0, 0.5), new THREE.MeshBasicMaterial({ color: 0x3fd8ff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }))
+ropeMesh.add(ropeGlow); ropeMesh.renderOrder = 4; ropeGlow.renderOrder = 4
 ropeMesh.visible = false; scene.add(ropeMesh)
 const aimMark = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.75, 24), new THREE.MeshBasicMaterial({ color: 0xffa04a, transparent: true, opacity: 0.9, depthTest: false }))
 aimMark.renderOrder = 5; aimMark.visible = false; scene.add(aimMark)
@@ -535,11 +540,14 @@ function onRaidEvent(e) {
     hitStop = 0.06 + k * 0.025; flashA = Math.min(1, 0.5 + k * 0.2); fovKick = -6 - k * 2; fx.addShake(0.4 + k * 0.25)
     fx.sparks(e.cx, e.cy, e.cz, 18 + k * 10, null, 10 + k * 4); fx.flash(e.cx, e.cy, e.cz); fx.debrisAt(e.cx, e.cy, e.cz, 8 + Math.round(k * 4), 0x6a6e76, { speed: 9, up: 5, size: 0.25 })
     if (e.open) { slowT = 0.3; sfx('zap', { vol: 0.7, rate: 0.6 }); flashA = 1 }
-    pop(e.counter ? t('counter') : e.open ? t('open') : e.crack && !e.kill ? t('crack') : t('ram')(Math.ceil(e.dmg)), (e.chain >= 2 ? t('chainL')(e.chain) + '  ' : '') + Math.round(e.v) + ' m/s')
+    pop(e.counter ? t('counter') : e.dive ? t('dive') : e.open ? t('open') : e.crack && !e.kill ? t('crack') : t('ram')(Math.ceil(e.dmg)), (e.chain >= 2 ? t('chainL')(e.chain) + '  ' : '') + Math.round(e.v) + ' m/s')
     floatPts(e.cx, e.cy + 1, e.cz, '+' + e.pts, e.mult >= 2 ? 'hot' : '')
     const sc = e.dmg * 40 + e.v + (e.kill ? 60 : 0); if (sc > photoScore) { photoScore = sc; snapNext = 2 }
   }
   else if (e.t === 'boing') { sfx('bonk', { vol: 0.6, rate: 1.4 }) }
+  else if (e.t === 'shaken') { sfx('whoosh', { vol: 1, rate: 0.75 }); fovKick = Math.max(fovKick, 8); flashA = Math.max(flashA, 0.3); pop(t('shaken'), '+' + e.pts) }
+  else if (e.t === 'hunterCrash') { sfxAt('crash', e.x, e.z, { vol: 1 }); sfxAt('boom', e.x, e.z, { vol: 0.9 }); boomFx(e.x, e.y, e.z, 1.2); hitStop = 0.06; pop(t('hunterCrash'), '+' + e.pts) }
+  else if (e.t === 'cover') { sfx('clang', { vol: 0.5, rate: 1.3 }); pop(t('cover'), '+' + e.pts) }
   else if (e.t === 'dash') { sfx('whoosh', { vol: 0.9, rate: 0.8 }); sfx('zap', { vol: 0.4, rate: 1.6 }); fovKick = 10; flashA = Math.max(flashA, 0.25) }
   else if (e.t === 'hunt') { sfxAt('drone', e.x, e.z, { vol: 0.7, rate: 0.7 }); hint('hunt', t('hintHunt')) }
   else if (e.t === 'lunge') { sfx('charge', { vol: 0.7, rate: 1.6 }); redA = Math.max(redA, 0.35); pop(t('lunge'), '') }
@@ -751,7 +759,7 @@ function render(dt) {
     if (c.rope) {
       const h = model.handWorld, isU = c.rope.ufo != null
       ropeMesh.visible = true; ropeMesh.material = isU ? ropeUfoMat : ropeMat
-      ropeMesh.position.copy(h); ropeMesh.lookAt(c.rope.x, c.rope.y, c.rope.z); ropeMesh.scale.set(isU ? 2.2 : 1, isU ? 2.2 : 1, Math.max(0.1, h.distanceTo(_v.set(c.rope.x, c.rope.y, c.rope.z))))
+      ropeMesh.position.copy(h); ropeMesh.lookAt(c.rope.x, c.rope.y, c.rope.z); ropeMesh.scale.set(1, 1, Math.max(0.1, h.distanceTo(_v.set(c.rope.x, c.rope.y, c.rope.z)))); ropeGlow.material.opacity = 0.28 + 0.1 * Math.sin(now * 14)
     } else ropeMesh.visible = false
     updateCamera(dt, c)
     const d = sun.userData.dir; sun.position.set(c.x + d.x * 150, c.y + d.y * 150, c.z + d.z * 150); sun.target.position.set(c.x, c.y, c.z)

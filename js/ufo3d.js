@@ -70,8 +70,21 @@ export class UfoView {
       const rim = new THREE.Mesh(this.gRim, u.kind === 'pod' || u.kind === 'hunter' ? this.podM : u.kind === 'big' ? this.redLightM : this.lightM[0]); body.add(rim)
       g.userData.rim = rim; g.userData.rimM = rim.material
       const n = u.kind === 'scout' ? 6 : 12
-      const lights = []
-      for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, L = new THREE.Mesh(this.gLight, u.kind === 'big' ? this.redLightM : u.kind === 'pod' ? this.podM : this.lightM[i % 3]); L.position.set(Math.cos(a) * 3.0, 0.12, Math.sin(a) * 3.0); body.add(L); lights.push(L) }
+      // 縁の光は1つの形にまとめる（描画1回）。色は頂点に焼く
+      const key = u.kind + n
+      if (!this.gLights) this.gLights = {}
+      if (!this.gLights[key]) {
+        const P = [], C = [], base = this.gLight.toNonIndexed(), pa = base.attributes.position, col = new THREE.Color()
+        for (let i = 0; i < n; i++) {
+          const a = i / n * Math.PI * 2; col.setHex(u.kind === 'big' ? 0xff3a6a : u.kind === 'pod' || u.kind === 'hunter' ? 0xff7a2a : [0x6ff7ff, 0x6ff7ff, 0xff4ab0][i % 3])
+          for (let j = 0; j < pa.count; j++) { P.push(pa.getX(j) + Math.cos(a) * 3, pa.getY(j) + 0.12, pa.getZ(j) + Math.sin(a) * 3); C.push(col.r, col.g, col.b) }
+        }
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3))
+        this.gLights[key] = g
+      }
+      if (!this.lightsM) this.lightsM = new THREE.MeshBasicMaterial({ vertexColors: true })
+      const lm = new THREE.Mesh(this.gLights[key], this.lightsM); body.add(lm)
+      const lights = [lm]
       const bot = new THREE.Mesh(this.gBottom, this.bottomM); bot.position.y = -0.95; body.add(bot)
       if (u.kind !== 'pod') { const dome = new THREE.Mesh(this.gDome, this.dome); dome.position.y = 0.55; body.add(dome) }
       if (u.kind === 'big') { const c = new THREE.Mesh(this.gCannon, this.hullDark); c.position.y = -1.4; body.add(c); for (const sx of [-1, 1]) { const f = new THREE.Mesh(this.gFin, this.hullDark); f.position.set(sx * 3.1, 0.3, 0); body.add(f) } }
@@ -110,7 +123,7 @@ export class UfoView {
       const tilt = u.state === 'fall' ? 0.6 + u.t * 0.4 : u.wob * Math.sin(now * 22) * 0.18 + Math.sin(now * 1.7 + u.id) * 0.05
       m.rotation.set(tilt, 0, u.state === 'fall' ? u.t * 0.7 : Math.cos(now * 1.3 + u.id) * 0.05 + u.vx * -0.012)
       U.flash.emissiveIntensity = u.flash * 1.6
-      if (U.lights) { const k = Math.floor(now * 6) % 3; U.lights.forEach((L, i) => { L.visible = u.state !== 'fall' || (i + k) % 2 === 0 }) }
+      if (U.lights) U.lights[0].visible = u.state !== 'fall' || Math.floor(now * 8) % 2 === 0
       if (U.eye) U.eye.scale.setScalar(1 + 0.08 * Math.sin(now * 9))
       const open = u.open > 0 && u.kind !== 'pod' && u.kind !== 'hunter'
       if (U.shield) { U.shield.visible = u.state === 'fly' && u.open <= 0; U.shield.rotation.y = now * 0.6; U.shield.material.opacity = 0.1 + 0.06 * Math.sin(now * 3 + u.id) }

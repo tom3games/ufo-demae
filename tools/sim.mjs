@@ -6,7 +6,8 @@ import { addTown, clearShopFront } from '../shared/town.js?v=1'
 import { createRaid, stepRaid, syncRope, summary, SHOP, RANKS, startDash } from '../shared/ufo.js?v=1'
 import { createUfoBot, ufoBotInput } from '../shared/ufobot.js?v=1'
 const N = +(process.argv[2] || 10), only = process.argv[3]
-const world = createWorld('city'); clearShopFront(world, SHOP); addTown(world, SHOP); buildPoles(world, SHOP)
+const { addRuinMap } = await import('../shared/ruinmap.js?v=1')
+const world = createWorld('city'); clearShopFront(world, SHOP); addTown(world, SHOP); addRuinMap(world); buildPoles(world, SHOP)
 const dt = 1 / 60
 export function play(kind, seed, verbose = false) {
   const r = createRunner({ id: 'me', spawn: { x: SHOP.x - 9, y: 0, z: SHOP.z, yaw: Math.PI / 2 } })
@@ -23,7 +24,7 @@ export function play(kind, seed, verbose = false) {
   }
   return { ...summary(R), cnt }
 }
-const kinds = only === 'missile' ? [] : only ? [only] : ['skilled', 'clumsy', 'masher', 'runner', 'idle']
+const kinds = only === 'missile' ? [] : only ? [only] : ['skilled', 'clumsy', 'evader', 'runner', 'idle']
 for (const k of kinds) {
   const rows = []
   for (let s = 1; s <= N; s++) rows.push(play(k, s, N === 1))
@@ -31,7 +32,7 @@ for (const k of kinds) {
   const sc = rows.map(x => x.score).sort((a, b) => a - b)
   const ends = {}; rows.forEach(x => ends[x.end] = (ends[x.end] || 0) + 1)
   console.log(`${k.padEnd(8)} 点 平均${Math.round(avg(x => x.score))} 中央${sc[sc.length >> 1]} 最小${sc[0]} 最大${sc[sc.length - 1]}  終わり ${JSON.stringify(ends)}  時間${avg(x => x.t).toFixed(0)}秒 到達波${avg(x => x.wave).toFixed(1)}`)
-  console.log(`         撃墜${avg(x => x.downed).toFixed(1)} 体当たり${avg(x => x.rams).toFixed(1)} 被弾${avg(x => x.hurt).toFixed(1)} 最高連鎖${avg(x => x.bestChain).toFixed(1)} 最高倍率${avg(x => x.bestMult).toFixed(2)} ドローン${avg(x => x.drones).toFixed(1)} 突撃${avg(x => x.cnt.dash || 0).toFixed(1)} 開いた所${avg(x => x.opens || 0).toFixed(1)} 迎え撃ち${avg(x => x.counters || 0).toFixed(1)} 突撃の平均速さ${avg(x => x.rams ? x.vSum / x.rams : 0).toFixed(1)}m/s 無傷の波${avg(x => x.perfect).toFixed(1)} 波の秒数 ${rows[0].waveTimes.join('/')}`)
+  console.log(`         撃墜${avg(x => x.downed).toFixed(1)} 体当たり${avg(x => x.rams).toFixed(1)} 被弾${avg(x => x.hurt).toFixed(1)} 最高連鎖${avg(x => x.bestChain).toFixed(1)} 最高倍率${avg(x => x.bestMult).toFixed(2)} ドローン${avg(x => x.drones).toFixed(1)} 突撃${avg(x => x.cnt.dash || 0).toFixed(1)} 開いた所${avg(x => x.opens || 0).toFixed(1)} 迎え撃ち${avg(x => x.counters || 0).toFixed(1)} 振り切り${avg(x => x.shaken || 0).toFixed(1)} 激突${avg(x => x.crashes || 0).toFixed(1)} 盾${avg(x => x.cover || 0).toFixed(1)} 急降下${avg(x => x.dives || 0).toFixed(1)} 突撃の平均速さ${avg(x => x.rams ? x.vSum / x.rams : 0).toFixed(1)}m/s 無傷の波${avg(x => x.perfect).toFixed(1)} 波の秒数 ${rows[0].waveTimes.join('/')}`)
   console.log(`         追尾弾 撃たれ${avg(x => x.cnt.fire || 0).toFixed(1)} すれすれ${avg(x => x.near).toFixed(1)} 建物${avg(x => x.mWall).toFixed(1)} UFOに誘導${avg(x => x.mBait).toFixed(1)}  被弾の内訳 ${JSON.stringify(Object.fromEntries(['beam','laser','drone','missile','hunter'].map(s => [s, +avg(x => x.hurtBy[s] || 0).toFixed(1)])))}`)
   const ranks = RANKS.map(v => rows.filter(x => x.score >= v).length)
   console.log(`         判定の境目 ${RANKS.join('/')}（S/A/B/C）以上の数 ${ranks.join('/')} / ${N}`)

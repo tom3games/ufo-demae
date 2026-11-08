@@ -2,6 +2,7 @@
 //   skilled: 予告の輪・線から出る、追尾弾は横の建物へワイヤーでふり切る、UFO を引っかけて体当たり、ドローンには飛んだまま当たる
 //   clumsy:  同じ考えだが、反応が0.4秒遅れ、ワイヤーを3回に1回掛け損ね、予告を半分見落とす
 //   masher:  突撃できる時はすぐ突撃する（速さや開いた所を待たない）。v3 の確認用
+//   evader:  ワイヤーで逃げ回るだけ（突撃しない）。v4 の確認用（逃げるだけでは勝てないこと）
 //   runner:  ワイヤーを使わず地面を走るだけ（遅い人。追跡機に捕まるはず）
 //   idle:    何もしない（いちばん悪い結果になるはず）
 import { findAnchor, blocked, RUN } from './runner.js?v=1'
@@ -60,11 +61,12 @@ function think(b, r, R, world, dt) {
     if (s2 > ts) { ts = s2; tgt = u }
   }
   if (tgt) goal = { x: tgt.x, z: tgt.z }
+  if (b.kind === 'evader' && tgt) { const dx = r.x - tgt.x, dz = r.z - tgt.z, l = Math.hypot(dx, dz) || 1; goal = { x: r.x + dx / l * 40 + (66 - r.x) * 0.3, z: r.z + dz / l * 40 + (862 - r.z) * 0.3 } }
   const dir = flee || (goal ? (() => { const dx = goal.x - r.x, dz = goal.z - r.z, l = Math.hypot(dx, dz); return l > 1.5 ? { x: dx / l, z: dz / l } : null })() : null)
   if (dir) { inp.moveDir = dir; inp.throttle = 1 }
   if (b.kind === 'runner') return inp
   // 突撃: 上手い人は速い時・開いた所・向かってくる追跡機を待つ。ほかは使えたらすぐ
-  if (!R.dash && R.dashReady && !(r.stun > 0)) {
+  if (b.kind !== 'evader' && !R.dash && R.dashReady && !(r.stun > 0)) {
     const lk = lockTarget(R, r, Math.atan2(r.vx, r.vz))
     if (lk) {
       const wait = b.kind === 'skilled' && sp < 18 && !(lk.open > 0) && !(lk.kind === 'hunter') && r.rope && r.rope.t < 1.0
@@ -77,9 +79,9 @@ function think(b, r, R, world, dt) {
     if (r.rope.t > 1.7 || (r.vy < -2 && r.rope.t > 0.7)) wire = true
   } else if (b.wT > (clumsy ? 0.8 : 0.45) && !(r.stun > 0) && !R.dash) {
     if (wantWire) { const a = findAnchor(world, r, wantWire.yaw); if (a) { wire = true; at = a } }
-    else if (tgt && (r.grounded || r.vy < -1 || sp < 12)) {
-      const d = Math.hypot(tgt.x - r.x, tgt.z - r.z)
-      const yaw = Math.atan2(tgt.x - r.x, tgt.z - r.z) + (d < 20 ? (b.rnd() - 0.5) * 1.6 : 0)
+    else if (goal && (r.grounded || r.vy < -1 || sp < 12)) {
+      const d = Math.hypot(goal.x - r.x, goal.z - r.z)
+      const yaw = Math.atan2(goal.x - r.x, goal.z - r.z) + (d < 20 ? (b.rnd() - 0.5) * 1.6 : 0)
       const a = findAnchor(world, r, yaw); if (a) { wire = true; at = a }
     }
     if (wire && clumsy && b.rnd() < 0.33) { wire = false; b.wT = 0 }
