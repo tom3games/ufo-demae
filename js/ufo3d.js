@@ -176,8 +176,10 @@ export class MotherView {
     this.g.visible = !!B
     if (!B) return
     this.g.position.set(B.x, B.y, B.z)
+    this.g.rotation.order = 'ZXY'   // 先に回してから傾ける（傾きは世界の向き）
     this.g.rotation.y = B.spin * 0.5
-    this.g.rotation.z = B.state === 'down' ? B.down * 0.18 : Math.sin(now * 0.5) * 0.02
+    this.g.rotation.x = B.state === 'down' ? 0 : (B.tiltZ || 0)
+    this.g.rotation.z = B.state === 'down' ? B.down * 0.18 : -(B.tiltX || 0) + Math.sin(now * 0.5) * 0.02
     this.lights.rotation.y = now * 0.4
     // 主砲が溜まるほど目が明るくなる（残り120秒→0秒）
     const k = B.state === 'fire' ? 1 : Math.max(0, Math.min(1, 1 - B.left / 120))

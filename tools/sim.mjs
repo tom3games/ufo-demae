@@ -3,7 +3,12 @@ import { createWorld } from '../shared/track.js?v=1'
 import { createRunner, stepRunner } from '../shared/runner.js?v=1'
 import { createStreet, buildPoles } from '../shared/street.js?v=1'
 import { addTown, clearShopFront } from '../shared/town.js?v=1'
-import { createRaid, stepRaid, syncRope, summary, SHOP, RANKS, startDash } from '../shared/ufo.js?v=1'
+import { createRaid, stepRaid, syncRope, summary, SHOP, RANKS, startDash, U, BOSS } from '../shared/ufo.js?v=1'
+// 調整の試し: RANGE=24 MOVEV=3.5 node tools/sim.mjs 40 clumsy
+if (process.env.RANGE) U.dashRange = +process.env.RANGE
+if (process.env.MOVEV) BOSS.moveV = +process.env.MOVEV
+if (process.env.PIN) BOSS.patrolIn = +process.env.PIN
+if (process.env.BY) BOSS.y = +process.env.BY
 import { createUfoBot, ufoBotInput } from '../shared/ufobot.js?v=1'
 const N = +(process.argv[2] || 10), only = process.argv[3]
 const { addRuinMap } = await import('../shared/ruinmap.js?v=1')
@@ -19,7 +24,7 @@ export function play(kind, seed, verbose = false) {
     if (inp.dash != null) startDash(R, r, inp.dash)
     syncRope(R, r); stepRunner(r, inp, dt, world); st.collide(r)
     stepRaid(R, r, dt)
-    for (const e of R.events) { cnt[e.t] = (cnt[e.t] || 0) + 1; if (verbose && !['near'].includes(e.t)) console.log(R.t.toFixed(1), JSON.stringify(e)) }
+    for (const e of R.events) { cnt[e.t] = (cnt[e.t] || 0) + 1; if (e.t === 'bossFight') cnt.bossAt = R.t; if (e.t === 'bossDown') cnt.bossSec = R.t - cnt.bossAt; if (verbose && !['near'].includes(e.t)) console.log(R.t.toFixed(1), JSON.stringify(e)) }
     R.events.length = 0
   }
   return { ...summary(R), cnt }
@@ -35,6 +40,8 @@ for (const k of kinds) {
   console.log(`         撃墜${avg(x => x.downed).toFixed(1)} 体当たり${avg(x => x.rams).toFixed(1)} 被弾${avg(x => x.hurt).toFixed(1)} 最高連鎖${avg(x => x.bestChain).toFixed(1)} 最高倍率${avg(x => x.bestMult).toFixed(2)} ドローン${avg(x => x.drones).toFixed(1)} 突撃${avg(x => x.cnt.dash || 0).toFixed(1)} 開いた所${avg(x => x.opens || 0).toFixed(1)} 迎え撃ち${avg(x => x.counters || 0).toFixed(1)} 振り切り${avg(x => x.shaken || 0).toFixed(1)} 激突${avg(x => x.crashes || 0).toFixed(1)} 盾${avg(x => x.cover || 0).toFixed(1)} 急降下${avg(x => x.dives || 0).toFixed(1)} 突撃の平均速さ${avg(x => x.rams ? x.vSum / x.rams : 0).toFixed(1)}m/s 無傷の波${avg(x => x.perfect).toFixed(1)} 波の秒数 ${rows[0].waveTimes.join('/')}`)
   console.log(`         追尾弾 撃たれ${avg(x => x.cnt.fire || 0).toFixed(1)} すれすれ${avg(x => x.near).toFixed(1)} 建物${avg(x => x.mWall).toFixed(1)} UFOに誘導${avg(x => x.mBait).toFixed(1)}  被弾の内訳 ${JSON.stringify(Object.fromEntries(['beam','laser','drone','missile','hunter'].map(s => [s, +avg(x => x.hurtBy[s] || 0).toFixed(1)])))}`)
   const ranks = RANKS.map(v => rows.filter(x => x.score >= v).length)
+  const bw = rows.filter(x => x.cnt.bossAt != null), bd = rows.filter(x => x.cnt.bossSec != null)
+  console.log(`         母艦まで来た ${bw.length}/${N}  母艦を倒した ${bd.length}/${N}（来た中 ${bw.length ? Math.round(bd.length / bw.length * 100) : 0}%）  母艦を倒すまで 平均${bd.length ? (bd.reduce((a, x) => a + x.cnt.bossSec, 0) / bd.length).toFixed(1) : '-'}秒 [${bd.map(x => x.cnt.bossSec.toFixed(0)).join(',')}]`)
   console.log(`         判定の境目 ${RANKS.join('/')}（S/A/B/C）以上の数 ${ranks.join('/')} / ${N}`)
 }
 

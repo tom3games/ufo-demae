@@ -27,8 +27,8 @@ export const U = {
   chainIdle: 6,           // これだけ何も起きないと連鎖が切れる
   between: 3.5,           // 波と波のあいだ
   open: 2.6,              // 撃った直後にシールドが開いている秒数
-  // v3 ロックオン突撃
-  dashRange: 25, dashMinV: 8, dashV: 30, dashMax: 2.2,   // 届く距離・使える速さ・突撃の速さ（発動時の速さ+6 と比べて大きい方）・打ち切り秒
+  // v3 ロックオン突撃（届く距離: v3 42m → v4 25m → v5 23m。2026-11-11 本人「攻撃できる距離をほんの少しだけ短く」）
+  dashRange: 23, dashMinV: 8, dashV: 30, dashMax: 2.2,   // 届く距離・使える速さ・突撃の速さ（発動時の速さ+6 と比べて大きい方）・打ち切り秒
   dashBounce: 12, dashShield: 0.5, dashOpen: 2,          // 当てた後に上へ跳ねる速さ・シールドの時の倍率・開いた所の倍率
   // 2026-11-09 本人「UFOも追いかけてくるように」: 追跡機（ハンター）
   huntV: 14, lungeV: 21, lungeR: 9, slowV: 10, huntHitR: 2.6, huntCool: 2.8,
@@ -51,7 +51,8 @@ export const WAVES = [
   { v: [{ ufos: ['saucer', 'saucer', 'saucer', 'big', 'hunter'], extra: ['saucer', 'saucer', 'scout'] }, { ufos: ['big', 'scout', 'scout', 'saucer', 'saucer'], extra: ['hunter', 'hunter', 'saucer'] }], atk: ['beam', 'drone', 'laser', 'missile'], first: 4, cd: [4.6, 7], maxAtk: 2, maxM: 1, droneV: 10, mV: 14.5, mTurn: 1.45 },
   { v: [{ ufos: ['saucer', 'saucer', 'saucer', 'saucer', 'big', 'hunter'], extra: ['saucer', 'big', 'saucer'] }, { ufos: ['big', 'big', 'saucer', 'saucer', 'hunter'], extra: ['scout', 'hunter', 'saucer', 'saucer'] }], atk: ['beam', 'drone', 'laser', 'missile'], first: 3, cd: [4.2, 6.5], maxAtk: 3, maxM: 2, droneV: 10.5, mV: 15.5, mTurn: 1.55 }
 ]
-export const BOSS = { hunterEvery: 22, maxHunters: 2, y: 36, rimR: 15, pods: 3, podHp: 3, coreHp: 7, coreY: 22, droneV: 11, mV: 16, mTurn: 1.6, maxM: 2, maxAtk: 3, cd: [3.6, 5.6] }
+// v5（2026-11-11 本人「母艦もある程度動き回るように」）: 広場の上を巡回。moveV で次の地点へ動き、着いたら dwell 秒止まる。攻撃の windup 秒前から止まって自分の方へ傾く
+export const BOSS = { moveV: 4.5, acc: 1.6, patrolIn: 14, patrolR: 32, patrolMin: 16, dwell: [1.2, 3], windup: 1.1, clear: 31, hunterEvery: 22, maxHunters: 2, y: 36, rimR: 15, pods: 3, podHp: 3, coreHp: 7, coreY: 22, droneV: 11, mV: 16, mTurn: 1.6, maxM: 2, maxAtk: 3, cd: [3.6, 5.6] }
 const KIND = {
   saucer: { hp: 1, r: 3.3, hh: 1.3, v: 7, alt: [12, 22] },
   big: { hp: 4, r: 5.2, hh: 1.9, v: 5, alt: [16, 26] },
@@ -227,13 +228,14 @@ export function stepRaid(R, r, dt) {
 export function syncRope(R, r) {
   if (r.rope && r.rope.ufo != null) { r.rope = null }
 }
+// 突撃の届く距離の測り方（判定・照準の表示・「遠い」の案内・bot で同じもの）
+export const dashDist = (r, u) => Math.hypot(u.x - r.x, u.y - (r.y + 1), u.z - r.z)
 // 突撃できるか（ビルで振った後・速さ 8m/s 以上・空中・40m 以内で見通せる）
 export function canDash(R, r, u) {
   if (!u || u.state !== 'fly' || R.dash || R.taken || R.over || !R.dashReady || r.grounded || r.climbing) return false
   if (R.boss && R.boss.state === 'arrive') return false
   if (Math.hypot(r.vx, r.vy, r.vz) < U.dashMinV) return false
-  const d = Math.hypot(u.x - r.x, u.y - (r.y + 1), u.z - r.z)
-  if (d > U.dashRange) return false
+  if (dashDist(r, u) > U.dashRange) return false
   return !blocked(R.world, r.x, r.y + 1.2, r.z, u.x, u.y, u.z) || !blocked(R.world, r.x, r.y + 1.2, r.z, u.x, u.y + u.hh + 1, u.z)
 }
 // bot と画面の既定の狙い: 前（yaw）寄りで近い UFO
@@ -241,7 +243,7 @@ export function lockTarget(R, r, yaw = null) {
   let best = null, bs = -1e9
   for (const u of R.ufos) {
     if (u.state !== 'fly') continue
-    const dx = u.x - r.x, dz = u.z - r.z, d = Math.hypot(dx, u.y - r.y, dz)
+    const dx = u.x - r.x, dz = u.z - r.z, d = dashDist(r, u)
     if (d > U.dashRange) continue
     let s2 = -d / U.dashRange + (u.kind === 'core' ? 0.6 : 0) + (u.kind === 'hunter' && u.hunt === 'chase' ? 0.3 : 0)
     if (yaw != null) s2 += ((dx * Math.sin(yaw) + dz * Math.cos(yaw)) / (Math.hypot(dx, dz) || 1)) * 0.8
@@ -667,6 +669,41 @@ function nearMiss(R, r, x, z, src) {
 }
 
 // ---------------------------------------------------------------- 母艦
+// 巡回の次の地点: 広場の真ん中から patrolIn〜patrolR（真ん中は周りのビルが低く、砲台まで上がれない）・今の所から patrolMin 以上・真下に高い建物が無い所（船体がビルにめり込まない）
+function bossSpot(R, B) {
+  let best = null, bh = 1e9
+  for (let i = 0; i < 24; i++) {
+    const a = R.rnd() * Math.PI * 2, d = BOSS.patrolIn + R.rnd() * (BOSS.patrolR - BOSS.patrolIn)
+    const x = ARENA.x + Math.sin(a) * d, z = ARENA.z + Math.cos(a) * d
+    if (Math.hypot(x - B.x, z - B.z) < BOSS.patrolMin) continue
+    let hi = 0
+    for (let k = 0; k < 13; k++) { const aa = k / 12 * Math.PI * 2, dd = k ? 17 : 0; hi = Math.max(hi, topAt(R.world, x + Math.sin(aa) * dd, z + Math.cos(aa) * dd)) }
+    if (hi <= BOSS.clear) return { x, z }
+    if (hi < bh) { bh = hi; best = { x, z } }
+  }
+  return best || { x: ARENA.x, z: ARENA.z }
+}
+// 母艦の動き: 次の地点へゆっくり進み、着いたら少し止まる。攻撃の直前は止まって、こちらへ傾く（向きを変える）
+function moveBoss(R, B, r, dt) {
+  if (!B.goal) { B.goal = bossSpot(R, B); B.vx = B.vx || 0; B.vz = B.vz || 0; B.wait = 0 }
+  const windup = B.atkCd < BOSS.windup
+  let wx = 0, wz = 0
+  if (B.wait > 0) { B.wait -= dt; if (B.wait <= 0) B.goal = bossSpot(R, B) }
+  else {
+    const dx = B.goal.x - B.x, dz = B.goal.z - B.z, d = Math.hypot(dx, dz)
+    if (d < 2) { B.wait = BOSS.dwell[0] + R.rnd() * (BOSS.dwell[1] - BOSS.dwell[0]) }
+    else { const v = BOSS.moveV * Math.min(1, d / 8); wx = dx / d * v; wz = dz / d * v }
+  }
+  if (windup) { wx = 0; wz = 0 }
+  const k = Math.min(1, dt * BOSS.acc)
+  B.vx += (wx - B.vx) * k; B.vz += (wz - B.vz) * k
+  B.x += B.vx * dt; B.z += B.vz * dt
+  // 傾き（画面用）: 進む向きへ前のめり、攻撃の前はこちらへ
+  const px = r.x - B.x, pz = r.z - B.z, pl = Math.hypot(px, pz) || 1
+  const tx = windup ? px / pl * 0.13 : B.vx / BOSS.moveV * 0.07, tz = windup ? pz / pl * 0.13 : B.vz / BOSS.moveV * 0.07
+  B.tiltX = (B.tiltX || 0) + (tx - (B.tiltX || 0)) * Math.min(1, dt * 3); B.tiltZ = (B.tiltZ || 0) + (tz - (B.tiltZ || 0)) * Math.min(1, dt * 3)
+  B.windup = windup
+}
 function stepBoss(R, r, dt) {
   const B = R.boss
   B.t += dt; B.spin += dt * 0.35
@@ -675,8 +712,7 @@ function stepBoss(R, r, dt) {
     if (B.t > 4.5) { B.state = 'fight'; ev(R, { t: 'bossFight' }) }
   } else if (B.state === 'fight' || B.state === 'core') {
     if (!R.taken) B.left -= dt
-    B.ang += dt * 0.07 * B.dirA
-    B.x = ARENA.x + Math.sin(B.ang) * 22; B.z = ARENA.z + Math.cos(B.ang) * 22
+    moveBoss(R, B, r, dt)
     B.y = BOSS.y + Math.sin(B.t * 0.6) * 1.2
     // 母艦そのもの: 焼却光線とドローン
     B.atkCd -= dt

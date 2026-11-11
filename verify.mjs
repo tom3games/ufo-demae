@@ -107,7 +107,11 @@ await t('使う文字だけのフォントの読み込みが最新（足りな�
   expect(m && m[1].replace(/&amp;/g, '&') === fontHref() && /media="print"/.test(m[0]), 'node tools/fontlink.mjs を回す'); return { chars: decodeURIComponent(fontHref().split('text=')[1]).length }
 })
 await t('画面に「AI」「画像生成」が出ない', async () => { const s = await p.evaluate(() => document.body.innerText + JSON.stringify([...document.querySelectorAll('[data-t]')].map(e => e.textContent))); expect(!/\bAI\b|画像生成/.test(s), s.match(/.{0,20}(AI|画像生成).{0,20}/)) })
-await t('廃都の見た目が入っている（墜ちた UFO・煙の柱・瓦礫）。描画回数が多すぎない', async () => { const r = await p.evaluate(() => ({ wrecks: ufo.ruin.wrecks.length, fires: ufo.ruin.fires.length, calls: ufo.renderer.info.render.calls })); expect(r.wrecks >= 2 && r.fires >= 8 && r.calls < 260, r); return r })
+await t('廃都の見た目が入っている（墜ちた UFO・煙の柱・瓦礫）。描画回数が多すぎない', async () => {
+  // タイトルの裏の CPU 戦（爆発・破片・追尾弾）で1コマの回数は 170〜360 で揺れる（v4 の時点から。2026-11-11 に旧版と比べて確認）。街そのものの重さは、0.3秒ごと6コマの一番少ない所で見る
+  const calls = []; for (let i = 0; i < 6; i++) { calls.push(await p.evaluate(() => ufo.renderer.info.render.calls)); await p.waitForTimeout(300) }
+  const r = await p.evaluate(() => ({ wrecks: ufo.ruin.wrecks.length, fires: ufo.ruin.fires.length })); r.calls = Math.min(...calls); r.all = calls.join('/')
+  expect(r.wrecks >= 2 && r.fires >= 8 && r.calls < 260, r); return r })
 await t('タイトルの後ろで CPU が UFO と戦っている（デモ）', async () => { await p.waitForTimeout(4000); const r = await p.evaluate(() => ({ t: ufo.R.t, ufos: ufo.R.ufos.length })); expect(r.t > 1 && r.ufos > 0, r); return r })
 await p.screenshot({ path: ROOT + '/shots/v-title.png' })
 await t('遊び方を開いて閉じられる', async () => { await p.click('#btnHow'); const n = await p.locator('#howList li').count(); await p.screenshot({ path: ROOT + '/shots/v-how.png' }); await p.click('#how [data-close]'); expect(n === 4, n) })
@@ -134,6 +138,7 @@ await t('追跡機: 止まっていると追いつかれて当たる', async () 
 })
 
 // 空中で速さ v（前向き）にして、突撃の準備をしたことにする（ビルで振った後）
+const ufo_moveV = 4.5
 const AIR = `ufo.me.y = Math.max(ufo.me.y, 7); ufo.me.grounded = false; ufo.me.rope = null; ufo.R.dashReady = true; const fx = Math.sin(ufo.cam.hd), fz = Math.cos(ufo.cam.hd); ufo.me.vx = fx * V; ufo.me.vz = fz * V; ufo.me.vy = 0; ufo.R.inv = 99;`
 await t('地面に立ったまま UFO をクリックしても突撃しない（ビルで振ってから）', async () => {
   const s = await setupUfo(p, 20, 8)
@@ -214,15 +219,44 @@ await t('着地せずに突撃を続けると連鎖と倍率が上がり、着�
   }, AIR)
   expect(r.top.chain >= 4 && r.top.mult >= 2 && r.after.chain === 0 && r.after.mult === 1, r); return r
 })
-await t('ロックオンは 25m 前後まで（30m 先の UFO には突撃できない）', async () => {
+await t('ロックオンは 23m まで（照準の印・水色・突撃の判定が同じ境目。30m と 23.5m は不可、22.5m は可）', async () => {
   const r = await p.evaluate(AIR => {
     ufo.dbg.teleport(60, 0, 866, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.dbg.clearUfos()
-    const u = ufo.R.ufos.find(q => q.state === 'fly'); u.frozen = false; ufo.dbg.placeUfo(u.id, 30, 6, 0)
-    new Function('V', AIR)(20); ufo.dbg.render(4); const far = ufo.dbg.lockId
-    ufo.dbg.placeUfo(u.id, 18, 6, 0); ufo.dbg.render(4); const near = ufo.dbg.lockId
-    return { far, near, id: u.id }
+    const u = ufo.R.ufos.find(q => q.state === 'fly'); u.frozen = false
+    const wb = () => document.querySelector('.tbtn[data-k=wire]').classList.contains('aim-ufo')
+    const at = d => { ufo.dbg.placeUfo(u.id, d, 1, 0); new Function('V', AIR)(20); ufo.dbg.placeUfo(u.id, d, 1, 0); ufo.dbg.render(4); return { lock: ufo.dbg.lockId === u.id, blue: wb(), d: +Math.hypot(u.x - ufo.me.x, u.y - ufo.me.y - 1, u.z - ufo.me.z).toFixed(2) } }
+    const far = at(30), out = at(23.5), inn = at(22.5)
+    const n0 = ufo.log.length; ufo.dbg.placeUfo(u.id, 23.5, 1, 0); ufo.dbg.tryDash(u.id); const dashOut = ufo.log.slice(n0).some(e => e.t === 'dash')
+    return { range: ufo.U.dashRange, far, out, inn, dashOut }
   }, AIR)
-  expect(r.far !== r.id && r.near === r.id, r); return r
+  expect(r.range === 23 && !r.far.lock && !r.out.lock && !r.out.blue && !r.dashOut && r.inn.lock && r.inn.blue, r); return r
+})
+await t('母艦は広場の上を巡回する（止まらない・速すぎない・広場から出ない・攻撃の前は止まってこちらへ傾く・砲台が付いてくる・カメラは勝手に回らない）', async () => {
+  const r = await p.evaluate(() => {
+    ufo.dbg.teleport(60, 0, 850, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.dbg.clearUfos(); ufo.R.inv = 1e9
+    ufo.R.wave = ufo.WAVES.length - 1; ufo.R.phase = 'between'; ufo.R.phaseT = 99
+    ufo.dbg.stepUntil("ufo.R.boss && ufo.R.boss.state === 'fight'", 600)
+    const B = ufo.R.boss, A = { x: 66, z: 862 }, hd0 = ufo.cam.hd
+    ufo.dbg.pause(true)
+    const keep = "(ufo.R.inv = 1e9, ufo.R.hp = 8, ufo.R.taken = null, ufo.R.boss.left = 100, false)"
+    let path = 0, maxV = 0, maxR = 0, minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9, px = B.x, pz = B.z, podOff = 0, still = 0
+    for (let i = 0; i < 80; i++) {   // 40秒を0.5秒ごとに見る（毎歩は描かない）
+      ufo.dbg.stepUntil(keep, 30)
+      const v = Math.hypot(B.vx, B.vz); path += Math.hypot(B.x - px, B.z - pz); maxV = Math.max(maxV, v); px = B.x; pz = B.z
+      if (v < 0.2) still++
+      maxR = Math.max(maxR, Math.hypot(B.x - A.x, B.z - A.z)); minX = Math.min(minX, B.x); maxX = Math.max(maxX, B.x); minZ = Math.min(minZ, B.z); maxZ = Math.max(maxZ, B.z)
+      for (const q of B.pods) if (q.state === 'fly') podOff = Math.max(podOff, Math.abs(Math.hypot(q.x - B.x, q.z - B.z) - ufo.BOSS.rimR))
+    }
+    let wind = 0, windV = 0, windTilt = 0
+    for (let k = 0; k < 3; k++) {   // 攻撃の直前: 止まって、こちらへ傾いている
+      if (ufo.dbg.stepUntil("(ufo.R.inv = 1e9, ufo.R.hp = 8, ufo.R.boss.left = 100, ufo.R.boss.windup && ufo.R.boss.atkCd < 0.2)", 900) < 0) break
+      wind++; windV = Math.max(windV, Math.hypot(B.vx, B.vz)); const tx = ufo.me.x - B.x, tz = ufo.me.z - B.z, l = Math.hypot(tx, tz); windTilt += (B.tiltX * tx + B.tiltZ * tz) / l > 0.08 ? 1 : 0
+      ufo.dbg.stepUntil("!ufo.R.boss.windup", 600)
+    }
+    ufo.dbg.pause(false)
+    return { path: Math.round(path), span: Math.round(Math.max(maxX - minX, maxZ - minZ)), maxV: +maxV.toFixed(2), maxR: Math.round(maxR), stillPct: Math.round(still / 0.8), podOff: +podOff.toFixed(2), wind, windV: +windV.toFixed(2), windTilt, camTurn: +Math.abs(ufo.cam.hd - hd0).toFixed(3) }
+  })
+  expect(r.path > 60 && r.span > 20 && r.maxV <= ufo_moveV + 0.3 && r.maxR <= 36 && r.stillPct < 70 && r.podOff < 0.05 && r.wind > 0 && r.windV < 1.5 && r.windTilt === r.wind && r.camTurn < 0.05, r); return r
 })
 await t('落ちながらの突撃は急降下（1.4倍）', async () => {
   const r = await p.evaluate(AIR => {
@@ -258,7 +292,10 @@ await t('真後ろを追ってくる追跡機は、細い鉄塔の向こうへ�
   expect(r.crash, r); return r
 })
 await t('ワイヤーは明るい芯と光で、暗い背景でも見える', async () => {
-  const r = await p.evaluate(() => { let core = null, glow = null; ufo.scene.traverse(o => { if (o.isMesh && o.geometry.parameters && o.geometry.parameters.radiusTop === 0.045) { core = o.material.color.getHSL({}); glow = o.children[0] && o.children[0].material.opacity } }); return { l: core && core.l, glow } })
+  // 光は 0.18〜0.38 で脈打つので、1コマだけ見ると低い所に当たって落ちる。0.1秒ごと8回の平均で見る
+  const one = () => p.evaluate(() => { let core = null, glow = null; ufo.scene.traverse(o => { if (o.isMesh && o.geometry.parameters && o.geometry.parameters.radiusTop === 0.045) { core = o.material.color.getHSL({}); glow = o.children[0] && o.children[0].material.opacity } }); return { l: core && core.l, glow } })
+  const xs = []; for (let i = 0; i < 8; i++) { xs.push(await one()); await p.waitForTimeout(100) }
+  const r = { l: xs[0].l, glow: +(xs.reduce((a, x) => a + x.glow, 0) / xs.length).toFixed(3) }
   expect(r.l > 0.8 && r.glow > 0.2, r); return r
 })
 const FRESH = `ufo.start(11); ufo.dbg.pause(true); ufo.dbg.stepUntil("ufo.R.phase === 'wave' && ufo.R.ufos.length >= 2", 600);`

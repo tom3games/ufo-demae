@@ -14,7 +14,7 @@ import { createStreet, buildPoles } from '../shared/street.js?v=1'
 import { addTown, clearShopFront } from '../shared/town.js?v=1'
 import { buildPoles3d, buildHouses3d, trafficPool } from './street3d.js?v=1'
 import { carLights } from './carmodel.js?v=1'
-import { createRaid, stepRaid, syncRope, rayUfo, canDash, startDash, addUfo, summary, BASE, RANKS, U, BOSS, WAVES, multOf } from '../shared/ufo.js?v=1'
+import { createRaid, stepRaid, syncRope, rayUfo, canDash, dashDist, startDash, addUfo, summary, BASE, RANKS, U, BOSS, WAVES, multOf } from '../shared/ufo.js?v=1'
 import { createUfoBot, ufoBotInput } from '../shared/ufobot.js?v=1'
 import { UfoView, MotherView, AttackView } from './ufo3d.js?v=1'
 import { drawReport } from './report.js?v=1'
@@ -61,7 +61,7 @@ const T = {
     crack: 'ひび', open: '撃ち抜いた x2', counter: '迎え撃ち', dive: '急降下', shaken: '振り切った', hunterCrash: '激突', cover: 'ビルが盾に', lunge: '突っ込んでくる',
     mBait: '誘導命中', mWall: 'ビルでふり切った', near: 'ギリギリ', multUp: m => `倍率 x${m}`, droneKill: 'ドローン破壊', chainEnd: n => `${n}連鎖`,
     scouts: '<small>管制</small>小型がいる。逃げ足が速い', big: '<small>管制</small>砲艦だ。追尾弾に気をつけろ',
-    boss: '<small>管制</small>母艦だ。縁の砲台から落とせ', coreOpen: '<small>管制</small>芯が出た。そこが弱点だ', bossDown: '<small>管制</small>母艦が落ちる…！', mainCannon: '<small>管制</small>主砲が来る…街が…',
+    boss: '<small>管制</small>母艦だ。動きを追って縁の砲台から落とせ', coreOpen: '<small>管制</small>芯が出た。そこが弱点だ', bossDown: '<small>管制</small>母艦が落ちる…！', mainCannon: '<small>管制</small>主砲が来る…街が…',
     taken: '<small>管制</small>応答しろ…応答…', lowHp: '<small>管制</small>電池が残りわずかだ',
     fix: '<small>管制</small>予備の電池を落とした。1本回復', clearLine: (n, s) => `<small>管制</small>第${n}波を排除（${s}秒）`, perfect: '無傷',
     again: '再出撃', save: '画像を保存', post: 'Xでポスト', toTitle: 'タイトル',
@@ -108,7 +108,7 @@ const T = {
     crack: 'CRACK', open: 'PIERCED x2', counter: 'HEAD-ON', dive: 'DIVE', shaken: 'SHOOK IT', hunterCrash: 'CRASHED', cover: 'COVER', lunge: 'INCOMING',
     mBait: 'LURED HIT', mWall: 'SHOOK IT OFF', near: 'CLOSE CALL', multUp: m => `x${m} MULTIPLIER`, droneKill: 'DRONE DOWN', chainEnd: n => `${n} chain`,
     scouts: '<small>HQ</small>Scouts. They are quick', big: '<small>HQ</small>Gunship. Watch for homing shots',
-    boss: '<small>HQ</small>Mothership. Take out the rim turrets', coreOpen: '<small>HQ</small>The core is exposed. Hit it', bossDown: '<small>HQ</small>It is going down...!', mainCannon: '<small>HQ</small>Main cannon... the city...',
+    boss: '<small>HQ</small>Mothership. Chase it and take out the rim turrets', coreOpen: '<small>HQ</small>The core is exposed. Hit it', bossDown: '<small>HQ</small>It is going down...!', mainCannon: '<small>HQ</small>Main cannon... the city...',
     taken: '<small>HQ</small>Respond... respond...', lowHp: '<small>HQ</small>Your cells are almost gone',
     fix: '<small>HQ</small>Dropped you a spare cell. +1', clearLine: (n, s) => `<small>HQ</small>Wave ${n} cleared (${s}s)`, perfect: 'NO DAMAGE',
     again: 'Redeploy', save: 'Save image', post: 'Post on X', toTitle: 'Title',
@@ -330,7 +330,7 @@ function tryDash(id, quiet = false) {
   if (!me || !R || mode !== 'play' || paused) return false
   const u = id != null && R.ufos.find(q => q.id === id)
   if (u && canDash(R, me, u)) { pendingDash = id; return true }
-  if (!quiet && u && needT <= 0) { needT = 1; { const sv = Math.hypot(me.vx, me.vy, me.vz), far = Math.hypot(u.x - me.x, u.y - me.y, u.z - me.z) > U.dashRange; pop(!R.dashReady || me.grounded ? t('needSwing') : sv < U.dashMinV ? t('needSpeed') : far ? t('tooFar') : t('noLine'), Math.round(sv) + ' m/s') }; hint('swing', touchMode ? t('hintHook') : t('hintHookPc')) }
+  if (!quiet && u && needT <= 0) { needT = 1; { const sv = Math.hypot(me.vx, me.vy, me.vz), far = dashDist(me, u) > U.dashRange; pop(!R.dashReady || me.grounded ? t('needSwing') : sv < U.dashMinV ? t('needSpeed') : far ? t('tooFar') : t('noLine'), Math.round(sv) + ' m/s') }; hint('swing', touchMode ? t('hintHook') : t('hintHookPc')) }
   return false
 }
 function screenBasis() { const e = camera.matrixWorld.elements; let rx = e[0], rz = e[2], fx = -e[8], fz = -e[10]; const a = Math.hypot(rx, rz) || 1, b = Math.hypot(fx, fz) || 1; return { r: { x: rx / a, z: rz / a }, f: { x: fx / b, z: fz / b } } }
@@ -777,7 +777,7 @@ function render(dt) {
     camera.updateMatrixWorld()
     for (const u of R.ufos) {
       if (u.state !== 'fly' || (R.boss && R.boss.state === 'arrive')) continue
-      const d = Math.hypot(u.x - me.x, u.y - me.y, u.z - me.z); if (d > U.dashRange) continue
+      const d = dashDist(me, u); if (d > U.dashRange) continue
       _v.set(u.x, u.y, u.z).project(camera); if (_v.z > 1 || Math.abs(_v.x) > 0.92 || Math.abs(_v.y) > 0.92) continue
       const sc = Math.hypot(_v.x, _v.y * 0.7) + d / U.dashRange * 0.6 - (u.kind === 'hunter' && u.hunt === 'chase' ? 0.2 : 0)
       if (sc < bs) { bs = sc; best = u }
@@ -836,7 +836,7 @@ function render(dt) {
 // ---------------------------------------------------------------- 検証用の窓口
 window.ufo = {
   get mode() { return mode }, log, get hitStop() { return hitStop }, get flashA() { return flashA }, get fovKick() { return fovKick }, get me() { return me }, get R() { return R }, RUN, U, world, camera, touchMode, cam, renderer, fx, scene, ruin,
-  start: seed => startRaid(seed), toTitle, showResult, setLang: l => { lang = l; applyLang() }, get lang() { return lang }, multOf, WAVES,
+  start: seed => startRaid(seed), toTitle, showResult, setLang: l => { lang = l; applyLang() }, get lang() { return lang }, multOf, WAVES, BOSS,
   // 画面の座標（検証で本物の指・マウスで押すため）
   ufoXY: id => { const u = R && R.ufos.find(q => q.id === id); if (!u) return null; camera.updateMatrixWorld(); _v.set(u.x, u.y, u.z).project(camera); return { x: (_v.x + 1) / 2 * innerWidth, y: (1 - _v.y) / 2 * innerHeight, z: _v.z } },
   pointXY: (x, y, z) => { camera.updateMatrixWorld(); _v.set(x, y, z).project(camera); return { x: (_v.x + 1) / 2 * innerWidth, y: (1 - _v.y) / 2 * innerHeight, z: _v.z } },
