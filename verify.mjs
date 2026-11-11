@@ -234,6 +234,7 @@ await t('ロックオンは 23m まで（照準の印・水色・突撃の判定
 await t('母艦は広場の上を巡回する（止まらない・速すぎない・広場から出ない・攻撃の前は止まってこちらへ傾く・砲台が付いてくる・カメラは勝手に回らない）', async () => {
   const r = await p.evaluate(() => {
     ufo.dbg.teleport(60, 0, 850, Math.PI / 2); ufo.cam.hd = Math.PI / 2; ufo.dbg.clearUfos(); ufo.R.inv = 1e9
+    for (const u of ufo.R.ufos) u.state = 'gone'   // 本番と同じく、前の波の UFO が残らない状態で母艦を出す
     ufo.R.wave = ufo.WAVES.length - 1; ufo.R.phase = 'between'; ufo.R.phaseT = 99
     ufo.dbg.stepUntil("ufo.R.boss && ufo.R.boss.state === 'fight'", 600)
     const B = ufo.R.boss, A = { x: 66, z: 862 }, hd0 = ufo.cam.hd
