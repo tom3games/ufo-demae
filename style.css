@@ -36,7 +36,7 @@ button,a{font:inherit;color:inherit;background:none;border:0;cursor:pointer;touc
 #boot-err{position:fixed;inset:auto 8px 8px 8px;z-index:99;background:#fff;color:#b00;font:12px/1.4 monospace;white-space:pre-wrap;padding:10px;border-radius:6px}
 
 /* ---------- タイトル ---------- */
-#title{display:flex;flex-direction:column;align-items:center;padding:max(28px,env(safe-area-inset-top)) 16px max(12px,env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(14,10,14,.72) 0%,rgba(14,10,14,.2) 34%,rgba(14,10,14,0) 55%,rgba(14,10,14,.75) 100%)}
+#title{display:flex;flex-direction:column;align-items:center;padding:max(28px,env(safe-area-inset-top)) 16px max(12px,calc(env(safe-area-inset-bottom) + var(--inapp-bot,0px)));background:linear-gradient(180deg,rgba(14,10,14,.72) 0%,rgba(14,10,14,.2) 34%,rgba(14,10,14,0) 55%,rgba(14,10,14,.75) 100%)}
 .title-text{margin-top:min(9svh,60px);text-align:center;text-shadow:0 2px 14px rgba(0,0,0,.8)}
 .series{font-family:var(--mono);font-size:13px;letter-spacing:.3em;color:var(--fire);text-transform:uppercase}
 .logo{margin-top:8px;font-family:var(--head);font-weight:900;line-height:1;display:flex;flex-direction:column;align-items:center;gap:8px}
@@ -98,7 +98,7 @@ html[lang=en] .logo span{font-size:min(12vw,58px);letter-spacing:.04em}
 @keyframes lowBlink{50%{opacity:.6}}
 .corner-btn{position:absolute;right:max(10px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));pointer-events:auto;font-size:13px;font-weight:700;color:var(--ink);background:var(--panel);border:1px solid var(--edge);padding:7px 12px}
 /* 無線（管制）: 画面の下、操作の上 */
-.say{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(max(16px,env(safe-area-inset-bottom)) + 128px);width:max-content;max-width:min(540px,calc(100% - 40px));font-size:15px;line-height:1.4;color:#d8f8fa;background:rgba(8,18,20,.82);border:1px solid rgba(111,246,255,.35);border-left:3px solid var(--cyan);padding:6px 12px;text-align:left;box-shadow:0 3px 12px rgba(0,0,0,.4);word-break:keep-all;overflow-wrap:anywhere}
+.say{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(max(16px,calc(env(safe-area-inset-bottom) + var(--inapp-bot,0px))) + 128px);width:max-content;max-width:min(540px,calc(100% - 40px));font-size:15px;line-height:1.4;color:#d8f8fa;background:rgba(8,18,20,.82);border:1px solid rgba(111,246,255,.35);border-left:3px solid var(--cyan);padding:6px 12px;text-align:left;box-shadow:0 3px 12px rgba(0,0,0,.4);word-break:keep-all;overflow-wrap:anywhere}
 .say small{display:inline-block;margin-right:.7em;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--cyan);vertical-align:1px}
 /* 方角の矢印（いちばん近い敵） */
 .edge-arrow{position:absolute;left:50%;top:max(10px,env(safe-area-inset-top));width:52px;height:52px;margin-left:-26px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(14,12,16,.55);border-radius:50%;box-shadow:inset 0 0 0 1px rgba(111,246,255,.3)}
@@ -140,20 +140,20 @@ html[lang=en] .logo span{font-size:min(12vw,58px);letter-spacing:.04em}
 /* スマホ操作 */
 .touch{position:absolute;inset:0;pointer-events:none}
 .stickzone{position:absolute;left:0;bottom:0;width:46%;height:62%;pointer-events:none}
-.stick{position:absolute;left:calc(max(16px,env(safe-area-inset-left)) + 62px);top:calc(100% - max(16px,env(safe-area-inset-bottom)) - 62px);width:124px;height:124px;margin:-62px 0 0 -62px;border-radius:50%;border:2px solid rgba(232,224,212,.4);background:rgba(14,12,16,.35);opacity:.7;pointer-events:auto;touch-action:none}
+.stick{position:absolute;left:calc(max(16px,env(safe-area-inset-left)) + 62px);top:calc(100% - max(16px,calc(env(safe-area-inset-bottom) + var(--inapp-bot,0px))) - 62px);width:124px;height:124px;margin:-62px 0 0 -62px;border-radius:50%;border:2px solid rgba(232,224,212,.4);background:rgba(14,12,16,.35);opacity:.7;pointer-events:auto;touch-action:none}
 .stick::before{content:'';position:absolute;inset:-24px;border-radius:50%}
 .stick.held{opacity:1}
 .stick .knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(232,224,212,.82)}
 .tbtn{position:absolute;pointer-events:auto;width:66px;height:66px;border-radius:50%;background:rgba(14,12,16,.55);border:2px solid rgba(232,224,212,.55);color:#fff;font-weight:700;font-size:14px;touch-action:none;display:flex;align-items:center;justify-content:center}
-.tbtn[data-k=wire]{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));width:104px;height:104px;background:rgba(196,80,26,.45);border-color:rgba(255,170,110,.95)}
+.tbtn[data-k=wire]{right:max(16px,env(safe-area-inset-right));bottom:max(16px,calc(env(safe-area-inset-bottom) + var(--inapp-bot,0px)));width:104px;height:104px;background:rgba(196,80,26,.45);border-color:rgba(255,170,110,.95)}
 .tbtn[data-k=wire] svg{width:52px;height:52px}
 .tbtn[data-k=wire].aim{box-shadow:0 0 0 3px rgba(255,255,255,.85),0 0 18px rgba(255,138,60,.9)}
 .tbtn[data-k=wire].aim-ufo{box-shadow:0 0 0 3px #fff,0 0 22px rgba(111,246,255,.95);background:rgba(20,120,130,.55);border-color:var(--cyan)}
-.tbtn[data-k=jump]{right:max(132px,calc(env(safe-area-inset-right) + 132px));bottom:max(28px,calc(env(safe-area-inset-bottom) + 12px));width:80px;height:80px}
+.tbtn[data-k=jump]{right:max(132px,calc(env(safe-area-inset-right) + 132px));bottom:max(28px,calc(calc(env(safe-area-inset-bottom) + var(--inapp-bot,0px)) + 12px));width:80px;height:80px}
 .tbtn:active{transform:scale(.94)}
 
 /* ---------- 結果 ---------- */
-#result{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:max(10px,env(safe-area-inset-top)) 16px max(10px,env(safe-area-inset-bottom));background:rgba(10,8,12,.78)}
+#result{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:max(10px,env(safe-area-inset-top)) 16px max(10px,calc(env(safe-area-inset-bottom) + var(--inapp-bot,0px)));background:rgba(10,8,12,.78)}
 .slip-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;width:100%}
 #slip{max-width:100%;max-height:100%;width:auto;height:100%;aspect-ratio:1080/1350;object-fit:contain}
 .result-actions{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;justify-content:center;color:#fff}
