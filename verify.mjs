@@ -8,7 +8,7 @@ import { MUTE_LAUNCH, muteContext } from './mute.mjs'
 const ROOT = import.meta.dirname
 execFileSync(process.execPath, ['tools/build.mjs'], { cwd: ROOT, stdio: 'inherit' })   // 公開するのは1つにまとめた dist/game.js。先に作り直す
 mkdirSync(ROOT + '/shots', { recursive: true })
-const PORT = 6417
+const PORT = Number(process.env.VPORT || 6417)
 const server = spawn(process.execPath, ['server.mjs'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT) } })
 await new Promise(r => setTimeout(r, 500))
 const URL0 = `http://localhost:${PORT}/`
@@ -23,6 +23,7 @@ const expect = (c, msg) => { if (!c) throw new Error(typeof msg === 'string' ? m
 async function open(browser, opts = {}) {
   const ctx = await browser.newContext({ locale: 'ja-JP', viewport: { width: 390, height: 844 }, ...opts })
   await muteContext(ctx)
+  if (process.env.VNAV) ctx.setDefaultNavigationTimeout(+process.env.VNAV)   // 他の検証で重い時だけ読み込みを長く待つ
   await ctx.addInitScript(() => { try { localStorage.clear() } catch (e) {} })
   const p = await ctx.newPage(); p.errs = []
   p.on('pageerror', e => p.errs.push('pageerror ' + e.message))
@@ -419,6 +420,41 @@ await t('WebKit: 左のスティックを指で倒すと走る', async () => {
 })
 await t('WebKit: 実際には無音（タップで音を鳴らした後）', async () => { const r = await wp.evaluate(() => window.__muteOk()); expect(r, r) })
 await t('WebKit: エラーなし', async () => { expect(wp.errs.length === 0, wp.errs.join('|')) })
+// ---- ページを離れた時の音（2026-11-11 横丁へ移っても BGM が鳴り続けた。sfx.js に止める処理が無かった）。音は鳴らさず、再生中のループの数で見る
+await (async (ap, other, ready, tapXY) => {
+  const e0 = ap.errs.length
+  await t('WebKit: 裏に回ると BGM と環境音が止まり suspend。戻っても触るまで鳴らない（bfcache の pageshow でも）', async () => {
+    await ap.waitForFunction(() => Snd.playing().length >= 1, null, { timeout: 15000 })
+    const r = await ap.evaluate(async () => {
+      const c = Snd.ctx; let sus = 0; const os = c.suspend; c.suspend = function () { sus++; return os.call(this) }
+      const before = Snd.playing().length, w0 = Snd.life.wake
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); document.dispatchEvent(new Event('visibilitychange'))
+      const hid = { away: Snd.away, playing: Snd.playing().length, sus, gain: Snd.master.gain.value }
+      const fx = Object.keys(Snd.files)[0], url = Object.values(Snd.loops).find(l => l && l.url).url
+      const pl = fx ? Snd.play(fx) : null; Snd.loop('awayTest', url, 0.2)   // 裏にいる間の音は鳴らさない
+      await new Promise(r => setTimeout(r, 400)); const quiet = Snd.playing().length
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange'))
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+      await new Promise(r => setTimeout(r, 400)); const back = { away: Snd.away, playing: Snd.playing().length, gain: Snd.master.gain.value, state: c.state }
+      Snd.loop('awayTest', null); c.suspend = os
+      return { before, w0, hid, pl: pl === null, quiet, back }
+    })
+    const xy = await tapXY(ap); await ap.touchscreen.tap(xy.x, xy.y); await ap.waitForTimeout(700)
+    const after = await ap.evaluate(() => ({ away: Snd.away, playing: Snd.playing().length, wake: Snd.life.wake, mute: window.__muteOk() }))
+    expect(r.before >= 1 && r.hid.away && r.hid.playing === 0 && r.hid.sus >= 1 && r.hid.gain === 0 && r.pl && r.quiet === 0 && r.back.away && r.back.playing === 0 && r.back.gain === 0 && r.back.state !== 'running' && !after.away && after.playing >= 1 && after.wake === r.w0 + 1 && after.mute, JSON.stringify({ r, after }))
+    return { before: r.before, hidden: r.hid.playing, back: r.back.playing, touched: after.playing }
+  })
+  await t('WebKit: 横丁へ移る（pagehide）と止まり、戻るで戻っても鳴っていない', async () => {
+    await ap.evaluate(() => addEventListener('pagehide', () => { try { sessionStorage.setItem('awayHide', JSON.stringify({ away: Snd.away, playing: Snd.playing().length })) } catch (e) {} }))
+    await ap.goto(URL0 + other); await ap.waitForTimeout(300)
+    const h = JSON.parse(await ap.evaluate(() => sessionStorage.getItem('awayHide')) || '{}')
+    await ap.goBack(); await ap.waitForFunction(ready, null, { timeout: 30000 }); await ap.waitForTimeout(800)
+    const back = await ap.evaluate(() => ({ playing: Snd.playing().length, ctx: Snd.ctx ? Snd.ctx.state : 'none' }))
+    expect(h.away && h.playing === 0 && back.playing === 0 && back.ctx !== 'running', JSON.stringify({ h, back })); return { h, back }
+  })
+  // 移る時に読み込み途中の音が中断されるのは数えない
+  await t('WebKit: 離れる・戻るでエラーなし', async () => { const e = ap.errs.slice(e0).filter(s => !/^reqfail |__away__|status of 404/.test(s)); expect(!e.length, e.join('|')) })
+})(wp, 'privacy.html', () => window.__ufoReady, p => ({ x: Math.round(p.viewportSize().width / 2), y: 6 }))
 await wb.close()
 server.kill()
 if (!process.env.LIVE) console.log(results.join('\n'))
